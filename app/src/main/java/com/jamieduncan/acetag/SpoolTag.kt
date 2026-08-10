@@ -12,6 +12,15 @@ object SpoolTag {
     const val END_PAGE = 0x27 // inclusive
     const val PAGE_COUNT = END_PAGE - START_PAGE + 1
 
+    // Page 0x20 is always zero in every known Anycubic dump (both v1 and v2), same as the
+    // 0x27-byte-3 "custom spool marker" this format already repurposes. We use it to write a
+    // random 4-byte group ID, shared by both tags of one spool, so a future read can pair them
+    // deterministically instead of guessing by matching specs (which breaks for two identical
+    // -color spools). Absent/zero on genuine Anycubic tags and tags written before this existed.
+    const val GROUP_ID_PAGE = 0x20
+
+    fun randomGroupId(): ByteArray = ByteArray(4).also { kotlin.random.Random.nextBytes(it) }
+
     val SKUS: LinkedHashMap<String, String> = linkedMapOf(
         "PLA" to "AHPLBK-101",
         "PLA+" to "AHPLPBK-102",
@@ -146,6 +155,18 @@ object SpoolTag {
             return String.format("#%02x%02x%02x", r, g, b)
         }
 
+        fun writeGroupId(bytes: ByteArray) {
+            require(bytes.size == 4) { "group id must be exactly 4 bytes" }
+            for (i in 0..3) writeByte(GROUP_ID_PAGE, i, bytes[i].toInt() and 0xFF)
+        }
+
+        /** Null if the tag has no group ID written (genuine Anycubic tags, or pre-group-ID writes). */
+        fun readGroupIdHex(): String? {
+            val bytes = ByteArray(4) { readByte(GROUP_ID_PAGE, it).toByte() }
+            if (bytes.all { it == 0.toByte() }) return null
+            return bytes.joinToString("") { "%02x".format(it) }
+        }
+
         companion object {
             /** Builds Pages from 144 raw bytes read starting at START_PAGE (as returned by MifareUltralight.readPages). */
             fun fromBytes(bytes: ByteArray): Pages {
@@ -181,13 +202,14 @@ object SpoolTag {
         )
     }
 
-    fun buildTag(spec: Spec): Pages {
+    fun buildTag(spec: Spec, groupId: ByteArray? = null): Pages {
         val t = Pages()
 
         // Static markers
         t.writeByte(0x04, 0, 0x7B)
         t.writeByte(0x04, 2, 0x65) // format version 2
         t.writeByte(0x27, 3, 0x4D) // custom spool marker
+        groupId?.let { t.writeGroupId(it) }
 
         t.writeString(0x05, SKUS[spec.type] ?: "AHPLBK-101")
         t.writeString(0x0A, spec.manufacturer.ifBlank { "AC" })

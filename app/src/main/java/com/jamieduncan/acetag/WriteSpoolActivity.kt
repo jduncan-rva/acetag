@@ -7,7 +7,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.nfc.NfcAdapter
 import android.nfc.Tag
-import android.nfc.tech.MifareUltralight
+import android.nfc.tech.NfcA
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
@@ -37,6 +37,7 @@ class WriteSpoolActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_IMPORT_UID = "import_uid"
+        const val EXTRA_IMPORT_GROUP_ID = "import_group_id"
         const val EXTRA_IMPORT_TYPE = "import_type"
         const val EXTRA_IMPORT_MANUFACTURER = "import_manufacturer"
         const val EXTRA_IMPORT_COLOR = "import_color"
@@ -61,7 +62,13 @@ class WriteSpoolActivity : AppCompatActivity() {
     /** id of the inventory row this write session is tied to, once one exists */
     private var spoolId: Long? = null
     private var importUid: String? = null
+    private var importGroupId: String? = null
     private var reprintSpoolId: Long? = null
+
+    /** Group ID written into both tags of a spool so a future read can pair them deterministically.
+     *  Fresh random for CREATE; carried over from the existing row for REPRINT; null for IMPORT
+     *  (an already-existing tag we didn't write has no group ID to carry). */
+    private var groupId: ByteArray? = null
 
     private val pickColor = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -115,6 +122,7 @@ class WriteSpoolActivity : AppCompatActivity() {
 
         when {
             importUid != null -> {
+                importGroupId = intent.getStringExtra(EXTRA_IMPORT_GROUP_ID)
                 val importType = intent.getStringExtra(EXTRA_IMPORT_TYPE)
                 binding.typeInput.setText(importType ?: types.first(), false)
                 binding.manufacturerInput.setText(intent.getStringExtra(EXTRA_IMPORT_MANUFACTURER))
@@ -147,11 +155,13 @@ class WriteSpoolActivity : AppCompatActivity() {
                         return@launch
                     }
                     fillForm(spool, types)
+                    groupId = spool.groupId?.hexToBytes()
                     setStatus("Reprinting a tag for this spool. Tap Arm for Write, then hold the new tag to the phone.")
                 }
                 binding.writeButton.setOnClickListener { armForWrite() }
             }
             else -> {
+                groupId = SpoolTag.randomGroupId()
                 binding.typeInput.setText(types.first(), false)
                 applyDefaults(types.first())
                 binding.writeButton.text = "📡 Arm for Write"
@@ -189,7 +199,7 @@ class WriteSpoolActivity : AppCompatActivity() {
         val uid = importUid ?: return
         lifecycleScope.launch {
             val dao = AppDatabase.get(this@WriteSpoolActivity).spoolDao()
-            val id = dao.insert(spec.toEntity(tagUidA = uid))
+            val id = dao.insert(spec.toEntity(tagUidA = uid, groupId = importGroupId))
             spoolId = id
             lastWrittenSpec = spec
             binding.writeButton.isEnabled = false
@@ -229,7 +239,7 @@ class WriteSpoolActivity : AppCompatActivity() {
             this, 0, intent,
             PendingIntent.FLAG_MUTABLE,
         )
-        val techLists = arrayOf(arrayOf(MifareUltralight::class.java.name))
+        val techLists = arrayOf(arrayOf(NfcA::class.java.name))
         val filters = arrayOf(IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED))
         adapter.enableForegroundDispatch(this, pendingIntent, filters, techLists)
     }
@@ -255,18 +265,18 @@ class WriteSpoolActivity : AppCompatActivity() {
     }
 
     private fun writeTag(tag: Tag, spec: SpoolTag.Spec) {
-        val ultralight = MifareUltralight.get(tag)
-        if (ultralight == null) {
-            setStatus("This tag is not a MIFARE Ultralight / NTAG21x chip.")
+        val nfcA = NfcA.get(tag)
+        if (nfcA == null) {
+            setStatus("This tag doesn't support NfcA — can't write to it.")
             return
         }
         val uid = tag.id.joinToString("") { "%02x".format(it) }
         try {
-            ultralight.connect()
-            val built = SpoolTag.buildTag(spec)
+            nfcA.connect()
+            val built = SpoolTag.buildTag(spec, groupId)
             for (i in 0 until SpoolTag.PAGE_COUNT) {
                 val page = SpoolTag.START_PAGE + i
-                ultralight.writePage(page, built.pages[i])
+                Type2Tag.writePage(nfcA, page, built.pages[i])
             }
             armed = false
             lastWrittenSpec = spec
@@ -277,7 +287,7 @@ class WriteSpoolActivity : AppCompatActivity() {
         } catch (e: Exception) {
             setStatus("Write failed: ${e.message}. Try holding the tag steady and tap Arm again.")
         } finally {
-            try { ultralight.close() } catch (_: Exception) {}
+            try { nfcA.close() } catch (_: Exception) {}
         }
     }
 
@@ -286,7 +296,7 @@ class WriteSpoolActivity : AppCompatActivity() {
             val dao = AppDatabase.get(this@WriteSpoolActivity).spoolDao()
             val existingId = spoolId ?: reprintSpoolId
             if (existingId == null) {
-                spoolId = dao.insert(spec.toEntity(tagUidA = uid))
+                spoolId = dao.insert(spec.toEntity(tagUidA = uid, groupId = groupId?.toHexString()))
             } else {
                 val existing = dao.getById(existingId) ?: return@launch
                 val updated = when {
@@ -300,7 +310,11 @@ class WriteSpoolActivity : AppCompatActivity() {
         }
     }
 
-    private fun SpoolTag.Spec.toEntity(tagUidA: String? = null, tagUidB: String? = null) = SpoolEntity(
+    private fun SpoolTag.Spec.toEntity(
+        tagUidA: String? = null,
+        tagUidB: String? = null,
+        groupId: String? = null,
+    ) = SpoolEntity(
         type = type,
         manufacturer = manufacturer,
         color = color,
@@ -315,6 +329,7 @@ class WriteSpoolActivity : AppCompatActivity() {
         weightG = weightG,
         tagUidA = tagUidA,
         tagUidB = tagUidB,
+        groupId = groupId,
         createdAt = System.currentTimeMillis(),
     )
 
@@ -401,3 +416,7 @@ class WriteSpoolActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }
+
+private fun ByteArray.toHexString(): String = joinToString("") { "%02x".format(it) }
+
+private fun String.hexToBytes(): ByteArray = chunked(2).map { it.toInt(16).toByte() }.toByteArray()

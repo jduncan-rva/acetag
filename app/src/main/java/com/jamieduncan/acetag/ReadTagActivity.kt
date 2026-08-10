@@ -6,11 +6,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.nfc.NfcAdapter
 import android.nfc.Tag
-import android.nfc.tech.MifareUltralight
+import android.nfc.tech.NfcA
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.jamieduncan.acetag.data.AppDatabase
+import com.jamieduncan.acetag.data.SpoolEntity
 import com.jamieduncan.acetag.databinding.ActivityReadTagBinding
 import kotlinx.coroutines.launch
 
@@ -39,7 +40,7 @@ class ReadTagActivity : AppCompatActivity() {
         val adapter = nfcAdapter ?: return
         val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_MUTABLE)
-        val techLists = arrayOf(arrayOf(MifareUltralight::class.java.name))
+        val techLists = arrayOf(arrayOf(NfcA::class.java.name))
         val filters = arrayOf(IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED))
         adapter.enableForegroundDispatch(this, pendingIntent, filters, techLists)
     }
@@ -60,19 +61,19 @@ class ReadTagActivity : AppCompatActivity() {
     }
 
     private fun readTag(tag: Tag) {
-        val ultralight = MifareUltralight.get(tag)
-        if (ultralight == null) {
-            binding.statusText.text = "This tag is not a MIFARE Ultralight / NTAG21x chip."
+        val nfcA = NfcA.get(tag)
+        if (nfcA == null) {
+            binding.statusText.text = "This tag doesn't support NfcA — can't read it."
             return
         }
         val uid = tag.id.joinToString("") { "%02x".format(it) }
         try {
-            ultralight.connect()
+            nfcA.connect()
             val raw = ByteArray(SpoolTag.PAGE_COUNT * 4)
             var offset = SpoolTag.START_PAGE
             var written = 0
             while (written < raw.size) {
-                val chunk = ultralight.readPages(offset)
+                val chunk = Type2Tag.readFourPages(nfcA, offset)
                 val toCopy = minOf(chunk.size, raw.size - written)
                 System.arraycopy(chunk, 0, raw, written, toCopy)
                 written += toCopy
@@ -80,15 +81,16 @@ class ReadTagActivity : AppCompatActivity() {
             }
             val pages = SpoolTag.Pages.fromBytes(raw)
             val spec = SpoolTag.decode(pages)
-            handleResult(uid, spec)
+            val groupIdHex = pages.readGroupIdHex()
+            handleResult(uid, spec, groupIdHex)
         } catch (e: Exception) {
             binding.statusText.text = "Read failed: ${e.message}"
         } finally {
-            try { ultralight.close() } catch (_: Exception) {}
+            try { nfcA.close() } catch (_: Exception) {}
         }
     }
 
-    private fun handleResult(uid: String, spec: SpoolTag.Spec?) {
+    private fun handleResult(uid: String, spec: SpoolTag.Spec?, groupIdHex: String?) {
         lifecycleScope.launch {
             val dao = AppDatabase.get(this@ReadTagActivity).spoolDao()
             val existing = dao.findByTagUid(uid)
@@ -107,23 +109,35 @@ class ReadTagActivity : AppCompatActivity() {
                 return@launch
             }
 
-            val candidates = dao.findMatchingWithOpenSlot(
-                type = spec.type,
-                manufacturer = spec.manufacturer,
-                color = spec.color,
-                nozzleMin = spec.nozzleMin,
-                nozzleMax = spec.nozzleMax,
-                bedMin = spec.bedMin,
-                bedMax = spec.bedMax,
-                diameterMm = spec.diameterMm,
-                weightG = spec.weightG,
-            )
+            // Group ID (AceTag's own pairing marker) is a deterministic match — try it first.
+            // Only fall back to matching by spec (ambiguous when colors repeat) if there's no
+            // group ID, e.g. a genuine Anycubic tag or one written before this feature existed.
+            val groupMatches = groupIdHex?.let { dao.findByGroupIdWithOpenSlot(it) } ?: emptyList()
+            val bySpecOrGroup = groupMatches.ifEmpty {
+                dao.findMatchingWithOpenSlot(
+                    type = spec.type,
+                    manufacturer = spec.manufacturer,
+                    color = spec.color,
+                    nozzleMin = spec.nozzleMin,
+                    nozzleMax = spec.nozzleMax,
+                    bedMin = spec.bedMin,
+                    bedMax = spec.bedMax,
+                    diameterMm = spec.diameterMm,
+                    weightG = spec.weightG,
+                )
+            }
+            val matchedByGroupId = groupMatches.isNotEmpty()
 
-            if (candidates.size == 1) {
-                val match = candidates.first()
+            if (bySpecOrGroup.size == 1) {
+                val match = bySpecOrGroup.first()
+                val confidence = if (matchedByGroupId) {
+                    "This is the paired second tag for"
+                } else {
+                    "This looks like the second tag for"
+                }
                 AlertDialog.Builder(this@ReadTagActivity)
                     .setTitle("Matching spool found")
-                    .setMessage("This looks like the second tag for ${match.manufacturer} ${match.type} (${match.color}). Attach it to that spool?")
+                    .setMessage("$confidence ${match.manufacturer} ${match.type} (${match.color}). Attach it to that spool?")
                     .setPositiveButton("Attach") { _, _ ->
                         lifecycleScope.launch {
                             dao.update(match.copy(tagUidB = uid))
@@ -134,19 +148,42 @@ class ReadTagActivity : AppCompatActivity() {
                             finish()
                         }
                     }
-                    .setNegativeButton("Import as new") { _, _ -> launchImport(uid, spec) }
+                    .setNegativeButton("Import as new") { _, _ -> launchImport(uid, spec, groupIdHex) }
                     .setCancelable(false)
                     .show()
+            } else if (bySpecOrGroup.size > 1) {
+                pickSpool(uid, spec, groupIdHex, bySpecOrGroup)
             } else {
-                launchImport(uid, spec)
+                launchImport(uid, spec, groupIdHex)
             }
         }
     }
 
-    private fun launchImport(uid: String, spec: SpoolTag.Spec) {
+    private fun pickSpool(uid: String, spec: SpoolTag.Spec, groupIdHex: String?, candidates: List<SpoolEntity>) {
+        val labels = candidates.map { "${it.manufacturer} ${it.type} (${it.color})" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Which spool is this the second tag for?")
+            .setItems(labels) { _, index ->
+                val match = candidates[index]
+                lifecycleScope.launch {
+                    AppDatabase.get(this@ReadTagActivity).spoolDao().update(match.copy(tagUidB = uid))
+                    startActivity(
+                        Intent(this@ReadTagActivity, SpoolDetailActivity::class.java)
+                            .putExtra(SpoolDetailActivity.EXTRA_SPOOL_ID, match.id),
+                    )
+                    finish()
+                }
+            }
+            .setNeutralButton("Import as new") { _, _ -> launchImport(uid, spec, groupIdHex) }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun launchImport(uid: String, spec: SpoolTag.Spec, groupIdHex: String?) {
         startActivity(
             Intent(this, WriteSpoolActivity::class.java)
                 .putExtra(WriteSpoolActivity.EXTRA_IMPORT_UID, uid)
+                .putExtra(WriteSpoolActivity.EXTRA_IMPORT_GROUP_ID, groupIdHex)
                 .putExtra(WriteSpoolActivity.EXTRA_IMPORT_TYPE, spec.type)
                 .putExtra(WriteSpoolActivity.EXTRA_IMPORT_MANUFACTURER, spec.manufacturer)
                 .putExtra(WriteSpoolActivity.EXTRA_IMPORT_COLOR, spec.color)

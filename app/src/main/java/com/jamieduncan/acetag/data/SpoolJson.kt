@@ -9,7 +9,7 @@ import org.json.JSONObject
  * consumer never has to guess. This is export-only for now — there is no import/ingest side
  * yet, but every field here is exactly what a "POST /spools" endpoint would want.
  */
-const val SPOOL_SCHEMA_VERSION = 1
+const val SPOOL_SCHEMA_VERSION = 2
 
 fun SpoolEntity.toJson(): JSONObject = JSONObject().apply {
     put("id", id)
@@ -27,6 +27,7 @@ fun SpoolEntity.toJson(): JSONObject = JSONObject().apply {
     put("weightG", weightG)
     put("tagUidA", tagUidA)
     put("tagUidB", tagUidB)
+    put("groupId", groupId)
     put("createdAtMs", createdAt)
     put("usedUpAtMs", usedUpAt)
 }

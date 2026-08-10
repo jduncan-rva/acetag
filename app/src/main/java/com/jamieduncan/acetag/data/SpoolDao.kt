@@ -32,6 +32,10 @@ interface SpoolDao {
     @Query("SELECT * FROM spools WHERE tagUidA = :uid OR tagUidB = :uid LIMIT 1")
     suspend fun findByTagUid(uid: String): SpoolEntity?
 
+    /** Deterministic pairing for AceTag-written tags: exact group-ID match, still missing a tag. */
+    @Query("SELECT * FROM spools WHERE usedUpAt IS NULL AND tagUidB IS NULL AND groupId = :groupId")
+    suspend fun findByGroupIdWithOpenSlot(groupId: String): List<SpoolEntity>
+
     @Query(
         """
         SELECT * FROM spools

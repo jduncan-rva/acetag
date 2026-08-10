@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [SpoolEntity::class], version = 1, exportSchema = false)
+@Database(entities = [SpoolEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun spoolDao(): SpoolDao
 
@@ -19,7 +19,11 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "acetag.db",
-                ).build().also { instance = it }
+                )
+                    // Pre-release, no installed base to preserve yet — real migrations can
+                    // replace this once the app has users with data worth keeping.
+                    .fallbackToDestructiveMigration()
+                    .build().also { instance = it }
             }
     }
 }

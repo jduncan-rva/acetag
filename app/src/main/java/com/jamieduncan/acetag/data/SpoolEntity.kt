@@ -20,6 +20,9 @@ data class SpoolEntity(
     val weightG: Int,
     val tagUidA: String? = null,
     val tagUidB: String? = null,
+    /** Hex of the 4-byte group ID written into both tags of this spool (page 0x20). Null for
+     *  spools imported from a genuine/third-party tag, or written before this field existed. */
+    val groupId: String? = null,
     val createdAt: Long,
     val usedUpAt: Long? = null,
 )
