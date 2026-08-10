@@ -1,0 +1,24 @@
+# Android / Gradle
+*.iml
+.gradle/
+build/
+app/build/
+/local.properties
+.idea/
+.DS_Store
+/captures
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Keystores (never commit signing keys)
+*.jks
+*.keystore
+
+# macOS
+.DS_Store
+
+# Python (scripts/spool_tag.py has no deps, but just in case)
+__pycache__/
+*.pyc

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Filament-orange accent, paired with a cool slate neutral. Light theme. -->
+    <color name="md_primary">#C4501A</color>
+    <color name="md_on_primary">#FFFFFF</color>
+    <color name="md_primary_container">#FFDBCB</color>
+    <color name="md_on_primary_container">#3A1300</color>
+
+    <color name="md_secondary">#3F6375</color>
+    <color name="md_on_secondary">#FFFFFF</color>
+    <color name="md_secondary_container">#C3E8FD</color>
+    <color name="md_on_secondary_container">#001F2A</color>
+
+    <color name="md_background">#FFFBFF</color>
+    <color name="md_on_background">#201A17</color>
+    <color name="md_surface">#FFFBFF</color>
+    <color name="md_on_surface">#201A17</color>
+    <color name="md_surface_variant">#F5DED4</color>
+    <color name="md_on_surface_variant">#53433C</color>
+    <color name="md_outline">#85736B</color>
+</resources>
