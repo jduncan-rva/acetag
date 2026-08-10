@@ -70,6 +70,9 @@ class WriteSpoolActivity : AppCompatActivity() {
      *  (an already-existing tag we didn't write has no group ID to carry). */
     private var groupId: ByteArray? = null
 
+    /** Hex of the currently suggested brand match, staged for "Apply". */
+    private var pendingMatchHex: String? = null
+
     private val pickColor = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -97,6 +100,14 @@ class WriteSpoolActivity : AppCompatActivity() {
         binding.colorInput.doOnTextChanged { text, _, _, _ -> updateSwatch(text) }
         binding.cameraButton.setOnClickListener {
             pickColor.launch(Intent(this, ColorPickerActivity::class.java))
+        }
+        binding.matchButton.setOnClickListener { findBrandMatch() }
+        binding.matchApplyButton.setOnClickListener {
+            pendingMatchHex?.let { binding.colorInput.setText(it) }
+            binding.matchCard.visibility = View.GONE
+        }
+        binding.matchDismissButton.setOnClickListener {
+            binding.matchCard.visibility = View.GONE
         }
 
         binding.writeSecondButton.setOnClickListener {
@@ -223,12 +234,40 @@ class WriteSpoolActivity : AppCompatActivity() {
     }
 
     private fun updateSwatch(text: CharSequence?) {
+        binding.matchCard.visibility = View.GONE
         val hex = text?.toString()?.trim().orEmpty()
         val normalized = if (hex.startsWith("#")) hex else "#$hex"
-        if (!normalized.matches(Regex("^#[0-9a-fA-F]{6}$"))) return
+        val valid = normalized.matches(Regex("^#[0-9a-fA-F]{6}$"))
+        binding.matchButton.isEnabled = valid
+        if (!valid) return
         val bg = (binding.colorSwatch.background as GradientDrawable).mutate() as GradientDrawable
         bg.setColor(Color.parseColor(normalized))
         binding.colorSwatch.background = bg
+    }
+
+    private fun findBrandMatch() {
+        val hex = binding.colorInput.text.toString().trim().let {
+            if (it.startsWith("#")) it else "#$it"
+        }
+        val material = binding.typeInput.text.toString().trim()
+        binding.matchButton.isEnabled = false
+        binding.matchButton.text = "Searching…"
+        lifecycleScope.launch {
+            val match = FilamentColorMatch.fetchBestMatch(hex, material.ifBlank { null })
+            binding.matchButton.isEnabled = true
+            binding.matchButton.text = "🔍 Find brand match"
+            if (match == null) {
+                toast("No match found — check your connection and try again.")
+                return@launch
+            }
+            val matchedHex = "#${match.matchedHex}"
+            pendingMatchHex = matchedHex
+            val bg = (binding.matchSwatch.background as GradientDrawable).mutate() as GradientDrawable
+            bg.setColor(Color.parseColor(matchedHex))
+            binding.matchSwatch.background = bg
+            binding.matchText.text = "${match.manufacturer} — ${match.colorName} (${match.filamentType})"
+            binding.matchCard.visibility = View.VISIBLE
+        }
     }
 
     override fun onResume() {

@@ -57,4 +57,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+
+    testImplementation("junit:junit:4.13.2")
+    // Android's org.json is a stub in unit tests (throws at runtime) — pull in the real impl.
+    testImplementation("org.json:json:20240303")
 }
