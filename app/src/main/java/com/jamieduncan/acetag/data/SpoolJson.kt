@@ -13,8 +13,14 @@ import org.json.JSONObject
  * spool that has been used up is deleted from the inventory and survives only as a CONSUMED event.
  * Anything reading v4 or earlier (tagUid / tagUids / tagUidA+tagUidB, usedUpAtMs) is reading a
  * different model and should reject rather than reinterpret it.
+ *
+ * v6 adds `finish` and `materialName` to both spools and events. `type` keeps its old meaning —
+ * exactly what the NFC tag says — so a v5 reader still gets a correct, if less specific, answer.
+ * The two are separate on purpose: wood-filled PETG has no Anycubic SKU, so its tag says "PETG"
+ * and only `finish` records the rest. Consumers that want to show a filament to a human want
+ * `materialName`; consumers reasoning about what's physically encoded on the sticker want `type`.
  */
-const val SPOOL_SCHEMA_VERSION = 5
+const val SPOOL_SCHEMA_VERSION = 6
 
 fun SpoolEntity.toJson(): JSONObject = JSONObject().apply {
     put("spoolKey", spoolKey)
@@ -23,6 +29,9 @@ fun SpoolEntity.toJson(): JSONObject = JSONObject().apply {
     put("tagUid2", tagUid2)
     put("groupId", groupId)
     put("type", type)
+    put("finish", finish)
+    put("materialName", materialName)
+    put("abrasive", isAbrasive)
     put("manufacturer", manufacturer)
     put("colorHex", color)
     put("nozzleMinC", nozzleMin)
@@ -44,6 +53,7 @@ fun SpoolEventEntity.toJson(): JSONObject = JSONObject().apply {
     put("occurredAtMs", occurredAt)
     put("source", source.name)
     put("type", type)
+    put("finish", finish)
     put("manufacturer", manufacturer)
     put("colorHex", color)
     put("diameterMm", diameterMm)

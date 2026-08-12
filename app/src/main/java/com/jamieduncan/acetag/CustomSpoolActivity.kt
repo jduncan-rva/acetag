@@ -86,9 +86,16 @@ class CustomSpoolActivity : NfcActivity() {
         binding = ActivityCustomSpoolBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        materials = SpoolTag.SKUS.keys.toList()
+        materials = FilamentMaterial.BASES
         binding.typeInput.setAdapter(
             ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, materials),
+        )
+        binding.finishInput.setAdapter(
+            ArrayAdapter(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                FilamentMaterial.FINISH_LABELS,
+            ),
         )
 
         binding.colorInput.doOnTextChanged { text, _, _, _ -> onColorChanged(text?.toString()) }
@@ -117,9 +124,13 @@ class CustomSpoolActivity : NfcActivity() {
     private fun setUpForNew() {
         binding.typeInput.setOnItemClickListener { _, _, position, _ ->
             applyMaterialDefaults(materials[position])
+            onMaterialChanged()
         }
+        binding.finishInput.setOnItemClickListener { _, _, _, _ -> onMaterialChanged() }
         binding.typeInput.setText(materials.first(), false)
+        binding.finishInput.setText(FilamentMaterial.Finish.NONE.label, false)
         applyMaterialDefaults(materials.first())
+        onMaterialChanged()
         binding.primaryButton.setOnClickListener { startWriting() }
     }
 
@@ -156,11 +167,15 @@ class CustomSpoolActivity : NfcActivity() {
     // ---------------------------------------------------------------- form
 
     private fun fillForm(spool: SpoolEntity) {
-        binding.typeInput.setText(spool.type, false)
+        binding.typeInput.setText(spool.baseMaterial, false)
+        binding.finishInput.setText(spool.finishEnum.label, false)
         // Only re-apply defaults on an explicit material change; an existing spool's own numbers win.
         binding.typeInput.setOnItemClickListener { _, _, position, _ ->
             applyMaterialDefaults(materials[position])
+            onMaterialChanged()
         }
+        binding.finishInput.setOnItemClickListener { _, _, _, _ -> onMaterialChanged() }
+        onMaterialChanged()
         binding.manufacturerInput.setText(spool.manufacturer)
         binding.colorInput.setText(spool.color)
         binding.nozzleMinInput.setText(spool.nozzleMin.toString())
@@ -172,6 +187,36 @@ class CustomSpoolActivity : NfcActivity() {
         binding.diameterInput.setText(spool.diameterMm.toString())
         binding.lengthInput.setText(spool.lengthM.toString())
         binding.weightInput.setText(spool.weightG.toString())
+    }
+
+    private fun selectedBase(): String =
+        binding.typeInput.text.toString().trim().ifBlank { materials.first() }
+
+    private fun selectedFinish(): FilamentMaterial.Finish =
+        FilamentMaterial.Finish.fromLabel(binding.finishInput.text.toString().trim())
+
+    /**
+     * Keeps the two notes under the material fields honest. Both are statements about the filament
+     * and the printer, so they're shown as soon as the choice is made rather than sprung on the
+     * user at write time.
+     */
+    private fun onMaterialChanged() {
+        val base = selectedBase()
+        val finish = selectedFinish()
+
+        binding.fallbackNote.visibility =
+            if (FilamentMaterial.needsFallback(base, finish)) {
+                binding.fallbackNote.text =
+                    "The ACE will show this as $base — Anycubic doesn't make " +
+                    "${finish.label.lowercase()} filament, so there's no code for it on the tag. " +
+                    "AceTag remembers."
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
+
+        binding.abrasiveNote.visibility =
+            if (finish.abrasive) View.VISIBLE else View.GONE
     }
 
     private fun applyMaterialDefaults(type: String) {
@@ -209,7 +254,7 @@ class CustomSpoolActivity : NfcActivity() {
 
     private fun findBrandMatch() {
         val hex = normalizeHex(binding.colorInput.text?.toString()) ?: return
-        val material = binding.typeInput.text.toString().trim()
+        val material = selectedBase()
         binding.matchButton.isEnabled = false
         binding.matchButton.text = "Searching…"
         lifecycleScope.launch {
@@ -267,7 +312,9 @@ class CustomSpoolActivity : NfcActivity() {
         }
 
         return SpoolTag.Spec(
-            type = binding.typeInput.text.toString().trim().ifBlank { materials.first() },
+            // The finish only reaches the tag when Anycubic sells that combination; otherwise this
+            // is the base material and the finish lives in the database. See [FilamentMaterial].
+            type = FilamentMaterial.tagType(selectedBase(), selectedFinish()),
             manufacturer = binding.manufacturerInput.text?.toString()?.trim().orEmpty(),
             color = color!!,
             nozzleMin = nozzleMin!!,
@@ -291,7 +338,11 @@ class CustomSpoolActivity : NfcActivity() {
         lifecycleScope.launch {
             val repo = SpoolRepository.get(this@CustomSpoolActivity)
             val stale = spool.tagsStale || (changed && spool.source == SpoolSource.CUSTOM)
-            repo.updateSpool(spool.withSpec(spec).copy(tagsStale = stale))
+            // The finish rides along outside the spec: switching wood to carbon fibre changes
+            // nothing the stickers carry, so it saves without making them stale.
+            val updated = spool.withSpec(spec)
+                .copy(finish = selectedFinish().name, tagsStale = stale)
+            repo.updateSpool(updated)
 
             if (changed && spool.source == SpoolSource.CUSTOM) {
                 AlertDialog.Builder(this@CustomSpoolActivity)
@@ -301,7 +352,7 @@ class CustomSpoolActivity : NfcActivity() {
                             "now, or do it later from the spool's page.",
                     )
                     .setPositiveButton("Rewrite now") { _, _ ->
-                        existing = spool.withSpec(spec).copy(tagsStale = true)
+                        existing = updated.copy(tagsStale = true)
                         rewriting = true
                         startWriting()
                     }
@@ -397,12 +448,19 @@ class CustomSpoolActivity : NfcActivity() {
                         tagUid = uid1,
                         tagUid2 = uid2,
                         groupId = groupId.toHexString(),
+                        finish = selectedFinish(),
                     ),
                 )
-                toast("Both tags written. ${SpoolDisplay.title(spec)} added to your inventory.")
+                val name = FilamentMaterial.displayName(selectedBase(), selectedFinish())
+                toast("Both tags written. ${SpoolDisplay.brand(spec.manufacturer)} $name added to your inventory.")
             } else {
                 // markTagsFresh writes the whole row, so the edited spec rides along with it.
-                repo.markTagsFresh(spool.withSpec(spec), uid1, uid2, groupId.toHexString())
+                repo.markTagsFresh(
+                    spool.withSpec(spec).copy(finish = selectedFinish().name),
+                    uid1,
+                    uid2,
+                    groupId.toHexString(),
+                )
                 toast("Both tags rewritten.")
             }
             finish()

@@ -3,6 +3,7 @@ package com.jamieduncan.acetag.data
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.jamieduncan.acetag.FilamentMaterial
 
 enum class SpoolEventKind {
     /** A spool entered the inventory. */
@@ -37,6 +38,11 @@ data class SpoolEventEntity(
 
     val source: SpoolSource,
     val type: String,
+
+    /** [SpoolEntity.finish] at the time of the event — part of the snapshot, so a used-up wood PLA
+     *  still reads as wood in the history rather than collapsing to plain PLA. */
+    val finish: String = FilamentMaterial.Finish.NONE.name,
+
     val manufacturer: String,
     val color: String,
     val diameterMm: Double,
@@ -54,6 +60,7 @@ fun SpoolEntity.toEvent(kind: SpoolEventKind, occurredAt: Long = System.currentT
         occurredAt = occurredAt,
         source = source,
         type = type,
+        finish = finish,
         manufacturer = manufacturer,
         color = color,
         diameterMm = diameterMm,

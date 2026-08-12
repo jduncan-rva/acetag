@@ -33,13 +33,17 @@ class SpoolAdapter(
         private val swatch: View = view.findViewById(R.id.itemSwatch)
         private val title: TextView = view.findViewById(R.id.itemTitle)
         private val subtitle: TextView = view.findViewById(R.id.itemSubtitle)
+        private val abrasive: TextView = view.findViewById(R.id.itemAbrasive)
         private val warning: TextView = view.findViewById(R.id.itemWarning)
         private val count: TextView = view.findViewById(R.id.itemCount)
 
         fun bind(group: SpoolGroup) {
             val spec = group.spec()
-            title.text = SpoolDisplay.title(spec)
+            // Titled from the spool, not the spec: a wood-filled PLA writes plain "PLA" to its tag.
+            title.text = SpoolDisplay.title(group.newest)
             subtitle.text = SpoolDisplay.summary(spec)
+            abrasive.text = SpoolDisplay.ABRASIVE_LABEL
+            abrasive.visibility = if (group.isAbrasive) View.VISIBLE else View.GONE
             warning.visibility = if (group.hasStaleTags) View.VISIBLE else View.GONE
             count.text = "×${group.count}"
             count.visibility = if (group.count > 1) View.VISIBLE else View.GONE

@@ -21,19 +21,6 @@ object SpoolTag {
 
     fun randomGroupId(): ByteArray = ByteArray(4).also { kotlin.random.Random.nextBytes(it) }
 
-    val SKUS: LinkedHashMap<String, String> = linkedMapOf(
-        "PLA" to "AHPLBK-101",
-        "PLA+" to "AHPLPBK-102",
-        "PLA High Speed" to "AHHSBK-102",
-        "PLA Matte" to "HYGBK-101",
-        "PLA Silk" to "HSCWH-101",
-        "PETG" to "HPEBK-103",
-        "ASA" to "HASBK-101",
-        "ABS" to "HABBK-102",
-        "TPU" to "HTPBK-101",
-        "PLA Luminous" to "HFGBL-101",
-    )
-
     data class Defaults(
         val nozzleMin: Int,
         val nozzleMax: Int,
@@ -46,7 +33,9 @@ object SpoolTag {
         val weightG: Int = 1000,
     )
 
-    // Typical published ranges per material; a starting point, always user-editable.
+    // Typical published ranges per material; a starting point, always user-editable. Keyed by tag
+    // type string, so the form falls back to the base material's numbers for any finish that
+    // doesn't have its own entry.
     val MATERIAL_DEFAULTS: Map<String, Defaults> = mapOf(
         "PLA" to Defaults(nozzleMin = 190, nozzleMax = 220, bedMin = 45, bedMax = 60),
         "PLA+" to Defaults(nozzleMin = 200, nozzleMax = 225, bedMin = 45, bedMax = 60),
@@ -211,7 +200,7 @@ object SpoolTag {
         t.writeByte(0x27, 3, 0x4D) // custom spool marker
         groupId?.let { t.writeGroupId(it) }
 
-        t.writeString(0x05, SKUS[spec.type] ?: "AHPLBK-101")
+        t.writeString(0x05, FilamentMaterial.skuForTagType(spec.type))
         t.writeString(0x0A, spec.manufacturer.ifBlank { "AC" })
         t.writeString(0x0F, spec.type)
 

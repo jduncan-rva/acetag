@@ -17,13 +17,29 @@ the spool in your hand and add it. If you already own that exact colour and mate
 and adds another one; the inventory counts spools, so three black PLAs are three spools.
 
 **It didn't** (anyone else's filament) — tap *Set up a spool without a tag*. Pick the material and
-it fills in sensible temperatures for you; type the brand and set the colour (type a hex code or
-sample it with the camera). Then you write **two stickers, one for each side of the spool**, so
-the ACE picks it up whichever way round it's loaded. The app walks you through both, and nothing
-is saved until both are written.
+finish and it fills in sensible temperatures for you; type the brand and set the colour (type a
+hex code or sample it with the camera). Then you write **two stickers, one for each side of the
+spool**, so the ACE picks it up whichever way round it's loaded. The app walks you through both,
+and nothing is saved until both are written.
 
 Scanning any tag you've already got — either sticker of a spool you tagged yourself — just opens
 that spool.
+
+## Materials and finishes
+
+Material is split in two, the way you'd describe a spool out loud: a **base** (PLA, PLA+, PLA High
+Speed, PETG, ASA, ABS, TPU) and a **finish** (Matte, Silk, Marble, Galaxy, Metallic, Glow in the
+Dark, Wood, Carbon Fibre).
+
+The tag can't always carry the finish. The ACE Pro validates the SKU field and only understands
+SKUs for filament Anycubic actually sells, and Anycubic makes no wood-filled or carbon-fibre
+filament — so there's no code to write. Where a combination exists (PLA Silk, PLA Matte, PLA
+Luminous) the tag says so; everywhere else the tag says the base material and AceTag remembers the
+rest. The form tells you which is happening before you write anything.
+
+The upshot: your printer always loads the spool correctly, its screen may say "PLA" for a
+wood-filled PLA, and your inventory always knows what the spool really is. Wood and carbon fibre
+are also flagged **abrasive · hardened nozzle** wherever they're listed.
 
 ## Also
 
@@ -57,6 +73,7 @@ emulator, so you'll need a physical phone.
 ```
 app/src/main/java/com/jamieduncan/acetag/
   SpoolTag.kt               # Anycubic tag format: encode a Spec to raw pages, decode raw pages back
+  FilamentMaterial.kt       # base material + finish, and which combinations the tag can carry
   Type2Tag.kt / TagIo.kt    # raw NFC read/write, and whole-tag read/write on top of it
   InventoryActivity.kt      # home screen: spool list, export
   ScanActivity.kt           # read a tag and route: known spool / new spool / blank sticker

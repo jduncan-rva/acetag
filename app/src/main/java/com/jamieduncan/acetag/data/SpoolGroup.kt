@@ -10,6 +10,7 @@ package com.jamieduncan.acetag.data
 data class SpoolGroup(
     val manufacturer: String,
     val type: String,
+    val finish: String,
     val color: String,
     /** Oldest first, so "use one up" takes the spool that's been on the shelf longest. */
     val spools: List<SpoolEntity>,
@@ -21,20 +22,38 @@ data class SpoolGroup(
     /** Any spool in the group whose stickers no longer match its details. */
     val hasStaleTags: Boolean get() = spools.any { it.tagsStale }
 
+    /** True when this filament chews through a brass nozzle — wood- or carbon-filled. */
+    val isAbrasive: Boolean get() = newest.isAbrasive
+
+    /** e.g. "PETG Carbon Fibre" — what the filament is, not what its tag was able to say. */
+    val materialName: String get() = newest.materialName
+
     fun spec() = newest.toSpec()
 }
 
+/** Everything that has to match for two spools to be "the same filament" on screen. */
+private data class GroupKey(
+    val manufacturer: String,
+    val type: String,
+    val finish: String,
+    val color: String,
+)
+
 /**
- * Collapses an inventory list into groups by brand, material and colour, keeping the incoming
- * newest-first order of the groups themselves.
+ * Collapses an inventory list into groups by brand, material, finish and colour, keeping the
+ * incoming newest-first order of the groups themselves.
+ *
+ * Finish is part of the key because it has to be: a wood-filled PLA and a plain PLA both write
+ * "PLA" to their tags, so without it they'd share a line and you'd reach for the wrong spool.
  */
 fun List<SpoolEntity>.groupBySpec(): List<SpoolGroup> =
-    groupBy { Triple(it.manufacturer, it.type, it.color) }
+    groupBy { GroupKey(it.manufacturer, it.type, it.finish, it.color) }
         .map { (key, spools) ->
             SpoolGroup(
-                manufacturer = key.first,
-                type = key.second,
-                color = key.third,
+                manufacturer = key.manufacturer,
+                type = key.type,
+                finish = key.finish,
+                color = key.color,
                 spools = spools.sortedBy { it.addedAt },
             )
         }

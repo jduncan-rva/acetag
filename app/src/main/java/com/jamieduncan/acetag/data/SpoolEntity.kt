@@ -3,6 +3,7 @@ package com.jamieduncan.acetag.data
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.jamieduncan.acetag.FilamentMaterial
 import com.jamieduncan.acetag.SpoolTag
 import java.util.UUID
 
@@ -60,7 +61,22 @@ data class SpoolEntity(
      */
     val groupId: String? = null,
 
+    /** What the tag says — the Anycubic type string, e.g. "PLA" or "PLA Silk". */
     val type: String,
+
+    /**
+     * The part of the material the tag can't carry, as a [FilamentMaterial.Finish] name.
+     *
+     * Wood-filled PETG has no Anycubic SKU, so its tag says plain "PETG" and this column is what
+     * remembers the truth. Deliberately *not* part of [SpoolTag.Spec]: the spec is "what's encoded
+     * on the sticker", and staleness is judged by comparing specs. Putting the finish in there
+     * would nag you to rewrite two stickers over a field they never held.
+     *
+     * For combinations Anycubic does sell (PLA Silk, PLA Matte, PLA Luminous) this duplicates what
+     * [type] already spells out, and [FilamentMaterial.fromTagType] keeps the two in step.
+     */
+    val finish: String = FilamentMaterial.Finish.NONE.name,
+
     val manufacturer: String,
     val color: String,
     val nozzleMin: Int,
@@ -110,6 +126,19 @@ data class SpoolEntity(
 
     /** True if [spec] differs in any field the NFC tag encodes. */
     fun specDiffersFrom(spec: SpoolTag.Spec): Boolean = toSpec() != spec
+
+    val finishEnum: FilamentMaterial.Finish
+        get() = FilamentMaterial.Finish.entries.firstOrNull { it.name == finish }
+            ?: FilamentMaterial.Finish.NONE
+
+    /** The base material, recovered from the tag's type string. */
+    val baseMaterial: String get() = FilamentMaterial.fromTagType(type).first
+
+    /** What to call this filament on screen, e.g. "PETG Carbon Fibre". */
+    val materialName: String get() = FilamentMaterial.displayName(baseMaterial, finishEnum)
+
+    /** Wood- and carbon-filled filament eats brass nozzles; worth flagging in the list. */
+    val isAbrasive: Boolean get() = finishEnum.abrasive
 }
 
 /** Builds an inventory row from a decoded or user-entered spec. */
@@ -118,6 +147,9 @@ fun SpoolTag.Spec.toSpool(
     tagUid: String,
     tagUid2: String? = null,
     groupId: String? = null,
+    /** Defaults to whatever the type string implies — right for scanned Anycubic tags, which is
+     *  all we know about them; the custom-spool form passes the finish it was given. */
+    finish: FilamentMaterial.Finish = FilamentMaterial.fromTagType(type).second,
     addedAt: Long = System.currentTimeMillis(),
 ) = SpoolEntity(
     source = source,
@@ -125,6 +157,7 @@ fun SpoolTag.Spec.toSpool(
     tagUid2 = tagUid2,
     groupId = groupId,
     type = type,
+    finish = finish.name,
     manufacturer = manufacturer,
     color = color,
     nozzleMin = nozzleMin,

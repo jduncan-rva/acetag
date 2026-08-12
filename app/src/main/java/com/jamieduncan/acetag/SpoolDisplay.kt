@@ -3,6 +3,7 @@ package com.jamieduncan.acetag
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.View
+import com.jamieduncan.acetag.data.SpoolEntity
 
 /**
  * Turning spec fields into the words shown on screen. Kept in one place so the inventory list,
@@ -19,8 +20,28 @@ object SpoolDisplay {
     fun brand(manufacturer: String): String =
         BRAND_NAMES[manufacturer.uppercase()] ?: manufacturer.ifBlank { "Unbranded" }
 
-    /** e.g. "Anycubic PLA" */
-    fun title(spec: SpoolTag.Spec): String = "${brand(spec.manufacturer)} ${spec.type}".trim()
+    /**
+     * Anycubic's own name for a material isn't always the name people use for it. "PLA Luminous"
+     * is glow-in-the-dark filament, and nobody calls it luminous. Spelled out here, the same way
+     * brand codes are, so the tag bytes stay untouched.
+     */
+    private val MATERIAL_NAMES = mapOf("PLA Luminous" to "PLA Glow in the Dark")
+
+    fun material(type: String): String = MATERIAL_NAMES[type] ?: type
+
+    /** e.g. "Anycubic PLA" — from a tag spec alone, which can't know about an app-side finish. */
+    fun title(spec: SpoolTag.Spec): String =
+        "${brand(spec.manufacturer)} ${material(spec.type)}".trim()
+
+    /**
+     * e.g. "Polymaker PETG Carbon Fibre". Preferred wherever a whole spool is in hand: the finish
+     * lives in the database, not on the tag, so a spec-only title would call this one "PETG".
+     */
+    fun title(spool: SpoolEntity): String =
+        "${brand(spool.manufacturer)} ${material(spool.materialName)}".trim()
+
+    /** Shown wherever an abrasive spool is listed — the one fact worth catching at a glance. */
+    const val ABRASIVE_LABEL = "Abrasive · hardened nozzle"
 
     /** e.g. "1000 g · 1.75 mm" */
     fun summary(spec: SpoolTag.Spec): String = buildString {

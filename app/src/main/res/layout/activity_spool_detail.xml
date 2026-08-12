@@ -37,6 +37,14 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/detailAbrasive"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/detailStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

@@ -42,6 +42,13 @@ add a quantity column or collapse identical spools into one record.
   decodes. This is the one file that has to stay byte-exact with the reverse-engineered Anycubic
   format (see README's "Tag format" section). Verify any change here against the known-good page
   dumps in the format documentation before trusting it.
+- `FilamentMaterial.kt` — material as a **base + finish** pair, and the table of which pairs
+  Anycubic actually sells. **Only a SKU Anycubic issued may ever reach a sticker**: the ACE
+  validates that field, so an invented SKU produces a spool the printer may refuse, discovered
+  only after the sticker is on. Pairs with no SKU (wood, carbon fibre, and for now Marble/Galaxy/
+  Metallic, whose SKUs aren't published) write the *base material* and keep the finish in the
+  database. `FilamentMaterialTest` locks that down — every base×finish pair must produce a SKU
+  from the issued set. If you add a material, add its SKU only from a real spool dump.
 - `TagIo.kt` / `NfcActivity.kt` — whole-tag read/write on top of `Type2Tag`'s page primitives, and
   the foreground-dispatch boilerplate. Screens deal in specs and UIDs, never byte offsets.
 - `ScanActivity` — reads one tag and routes, no disambiguating dialogs. Known UID → that spool's
@@ -54,8 +61,9 @@ add a quantity column or collapse identical spools into one record.
   purpose.** Using a spool up records a CONSUMED event; removing a mistake deletes the row *and*
   its ADDED event, because filament you never bought must not appear in the history. Do not merge
   them into one delete.
-- `data/` — Room (SQLite), `acetag2.db` at version 1, no migrations. `spools` is **current
-  inventory only**; `spool_events` is the append-only history (ADDED / CONSUMED), carrying a full
+- `data/` — Room (SQLite), `acetag2.db` at version 2, with real migrations — the inventory is a
+  record of filament someone actually bought, so never reach for destructive fallback. `spools` is
+  **current inventory only**; `spool_events` is the append-only history (ADDED / CONSUMED), carrying a full
   denormalized snapshot because the spool row is gone by the time a CONSUMED event is read. All
   mutations go through `SpoolRepository` so a row change and its event stay in one transaction.
 
@@ -64,8 +72,9 @@ add a quantity column or collapse identical spools into one record.
   spools into one row and undercounted the inventory. Exact UID lookup is not inference and is
   fine: a custom spool records both its sticker UIDs at write time, so `findByTagUid` is a key
   lookup. `groupId` is part of the tag byte format only; never match on it.
-- `data/SpoolJson.kt` — versioned JSON export (`SPOOL_SCHEMA_VERSION`, currently 5, exporting
-  `{spools, events}`). Forward-looking: there is no import/ingest side yet (no web app, no
+- `data/SpoolJson.kt` — versioned JSON export (`SPOOL_SCHEMA_VERSION`, currently 6, exporting
+  `{spools, events}`). `type` is what the tag says; `materialName`/`finish` are what the filament
+  is. Keep both — they differ exactly where the tag couldn't carry the finish. Forward-looking: there is no import/ingest side yet (no web app, no
   server). When one gets built, this schema is the contract — bump the version and keep old
   fields readable rather than silently reshaping it.
 

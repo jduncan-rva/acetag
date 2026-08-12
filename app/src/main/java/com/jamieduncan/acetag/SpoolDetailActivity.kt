@@ -50,8 +50,11 @@ class SpoolDetailActivity : AppCompatActivity() {
 
     private fun render(spool: SpoolEntity) {
         val spec = spool.toSpec()
-        binding.detailTitle.text = SpoolDisplay.title(spec)
+        binding.detailTitle.text = SpoolDisplay.title(spool)
         binding.detailSwatch.setSwatchColor(spool.color)
+
+        binding.detailAbrasive.text = SpoolDisplay.ABRASIVE_LABEL
+        binding.detailAbrasive.visibility = if (spool.isAbrasive) View.VISIBLE else View.GONE
 
         val added = DateFormat.getDateInstance().format(Date(spool.addedAt))
         val origin = when (spool.source) {
@@ -84,7 +87,7 @@ class SpoolDetailActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Used up?")
             .setMessage(
-                "${SpoolDisplay.title(spool.toSpec())} comes off your shelf and goes into your " +
+                "${SpoolDisplay.title(spool)} comes off your shelf and goes into your " +
                     "filament history, so you can see what you get through over time.",
             )
             .setPositiveButton("Used it up") { _, _ ->

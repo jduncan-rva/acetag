@@ -83,7 +83,7 @@ class SpoolGroupActivity : AppCompatActivity() {
             return
         }
         val spec = list.last().toSpec()
-        binding.groupTitle.text = SpoolDisplay.title(spec)
+        binding.groupTitle.text = SpoolDisplay.title(list.last())
         binding.groupCount.text = SpoolDisplay.spoolCount(list.size)
         binding.groupSpecs.text = SpoolDisplay.details(spec)
         binding.groupSwatch.setSwatchColor(spec.color)
