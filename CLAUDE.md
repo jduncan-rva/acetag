@@ -4,9 +4,22 @@ Guidance for Claude Code sessions working in this repo.
 
 ## What this is
 
-AceTag: a native Android (Kotlin) app that writes NFC tags in the Anycubic ACE Pro's proprietary
-filament-spool format, entirely from the phone (no PC/USB reader), and keeps a local inventory of
-what's been written. See README.md for the full feature list and tag format details.
+AceTag: a native Android (Kotlin) app that keeps an inventory of 3D printer filament spools, and
+writes NFC tags in the Anycubic ACE Pro's proprietary spool format for filament that didn't come
+with one — entirely from the phone, no PC/USB reader. See README.md for the tag format details.
+
+**Two workflows, and almost every design decision follows from which one you're in:**
+
+1. **Anycubic filament** — the spool comes with its own tag. Scan it, confirm, it's in the
+   inventory. Nothing is written. If you already own that colour and material, the confirmation
+   says so; it's an *additional spool*, not a duplicate to resolve.
+2. **Anything else** — no tag, so we write our own. The ACE reads whichever side of the spool
+   faces it, so this needs **two stickers, one per side** — identical payloads, one inventory
+   row. The write is all-or-nothing: nothing is saved until both are written, because a
+   half-tagged spool works only one way up.
+
+**The spool is the countable object and it is the row.** Three black PLAs are three rows. Never
+add a quantity column or collapse identical spools into one record.
 
 ## Build environment
 
@@ -29,17 +42,32 @@ what's been written. See README.md for the full feature list and tag format deta
   decodes. This is the one file that has to stay byte-exact with the reverse-engineered Anycubic
   format (see README's "Tag format" section). Verify any change here against the known-good page
   dumps in the format documentation before trusting it.
-- `WriteSpoolActivity` — one Activity handles three flows (CREATE / IMPORT / REPRINT) selected by
-  which Intent extras are present. See the class doc comment before adding a fourth flow; consider
-  whether it actually needs to be a fourth mode of this Activity or its own screen.
-- `ReadTagActivity` — reads a tag, decodes it, and either opens a matching inventory row, offers
-  to attach it as a spool's second tag (if there's exactly one open-slot match), or hands off to
-  `WriteSpoolActivity` in IMPORT mode.
-- `data/` — Room (SQLite). `SpoolEntity.tagUidA`/`tagUidB` are the physical NFC tag UIDs, which is
-  how a scanned tag gets linked back to an inventory row — not a synthetic/written ID.
-- `data/SpoolJson.kt` — versioned JSON export (`SPOOL_SCHEMA_VERSION`). This is forward-looking:
-  there is no import/ingest side yet (no web app, no server). When one gets built, this schema is
-  the contract — bump the version and keep old fields readable rather than silently reshaping it.
+- `TagIo.kt` / `NfcActivity.kt` — whole-tag read/write on top of `Type2Tag`'s page primitives, and
+  the foreground-dispatch boilerplate. Screens deal in specs and UIDs, never byte offsets.
+- `ScanActivity` — reads one tag and routes, no disambiguating dialogs. Known UID → that spool's
+  detail screen. Unknown UID that decodes → `AddSpoolActivity` (workflow 1). Unknown UID with no
+  spool data → offer to start a custom spool.
+- `AddSpoolActivity` — the workflow 1 confirmation. Read-only; every field came off the tag.
+- `CustomSpoolActivity` — workflow 2, plus editing, because it's the same form and editing a spec
+  is what makes stickers go stale. Three modes by Intent extra: CREATE / EDIT / REWRITE.
+- `SpoolDetailActivity` — **"used it up" and "added by mistake" are two separate buttons on
+  purpose.** Using a spool up records a CONSUMED event; removing a mistake deletes the row *and*
+  its ADDED event, because filament you never bought must not appear in the history. Do not merge
+  them into one delete.
+- `data/` — Room (SQLite), `acetag2.db` at version 1, no migrations. `spools` is **current
+  inventory only**; `spool_events` is the append-only history (ADDED / CONSUMED), carrying a full
+  denormalized snapshot because the spool row is gone by the time a CONSUMED event is read. All
+  mutations go through `SpoolRepository` so a row change and its event stay in one transaction.
+
+  **The tag-matching rule:** never *infer* which spool a tag belongs to — not by matching specs,
+  not by `groupId`, not by "open slot" heuristics. That was tried; it silently merged separate
+  spools into one row and undercounted the inventory. Exact UID lookup is not inference and is
+  fine: a custom spool records both its sticker UIDs at write time, so `findByTagUid` is a key
+  lookup. `groupId` is part of the tag byte format only; never match on it.
+- `data/SpoolJson.kt` — versioned JSON export (`SPOOL_SCHEMA_VERSION`, currently 5, exporting
+  `{spools, events}`). Forward-looking: there is no import/ingest side yet (no web app, no
+  server). When one gets built, this schema is the contract — bump the version and keep old
+  fields readable rather than silently reshaping it.
 
 ## Working style for this project
 

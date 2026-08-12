@@ -23,14 +23,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- singleTop so an NFC tap reaches the running instance via onNewIntent rather than
+             starting a second copy mid-write. -->
         <activity
-            android:name=".WriteSpoolActivity"
+            android:name=".ScanActivity"
             android:exported="false"
             android:launchMode="singleTop" />
         <activity
-            android:name=".ReadTagActivity"
+            android:name=".CustomSpoolActivity"
             android:exported="false"
             android:launchMode="singleTop" />
+        <activity
+            android:name=".AddSpoolActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SpoolGroupActivity"
+            android:exported="false" />
         <activity
             android:name=".SpoolDetailActivity"
             android:exported="false" />

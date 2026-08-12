@@ -1,19 +1,27 @@
 package com.jamieduncan.acetag
 
 import android.app.AlertDialog
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.jamieduncan.acetag.data.AppDatabase
 import com.jamieduncan.acetag.data.SpoolEntity
+import com.jamieduncan.acetag.data.SpoolRepository
+import com.jamieduncan.acetag.data.SpoolSource
 import com.jamieduncan.acetag.databinding.ActivitySpoolDetailBinding
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 
+/**
+ * One spool, and everything you can do to it.
+ *
+ * The two ways a spool leaves the inventory are deliberately separate buttons, because they mean
+ * opposite things to the history: using a spool up is a real event worth recording, while removing
+ * one you entered by mistake has to leave no trace at all or it shows up as filament you never
+ * bought. Don't merge them into one "delete".
+ */
 class SpoolDetailActivity : AppCompatActivity() {
 
     companion object {
@@ -29,89 +37,87 @@ class SpoolDetailActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         spoolId = intent.getLongExtra(EXTRA_SPOOL_ID, -1)
-        if (spoolId < 0) {
-            finish()
-            return
-        }
-
-        binding.reprintButton.setOnClickListener {
-            startActivity(
-                Intent(this, WriteSpoolActivity::class.java)
-                    .putExtra(WriteSpoolActivity.EXTRA_REPRINT_SPOOL_ID, spoolId),
-            )
-        }
-        binding.deleteButton.setOnClickListener { confirmDelete() }
+        if (spoolId < 0) finish()
     }
 
     override fun onResume() {
         super.onResume()
-        load()
-    }
-
-    private fun load() {
         lifecycleScope.launch {
-            val spool = AppDatabase.get(this@SpoolDetailActivity).spoolDao().getById(spoolId)
-            if (spool == null) {
-                finish()
-                return@launch
-            }
-            render(spool)
+            val spool = SpoolRepository.get(this@SpoolDetailActivity).getById(spoolId)
+            if (spool == null) finish() else render(spool)
         }
     }
 
     private fun render(spool: SpoolEntity) {
-        binding.detailTitle.text = "${spool.manufacturer} ${spool.type}"
-        try {
-            val bg = (binding.detailSwatch.background as GradientDrawable).mutate() as GradientDrawable
-            bg.setColor(Color.parseColor(spool.color))
-            binding.detailSwatch.background = bg
-        } catch (_: Exception) {
+        val spec = spool.toSpec()
+        binding.detailTitle.text = SpoolDisplay.title(spec)
+        binding.detailSwatch.setSwatchColor(spool.color)
+
+        val added = DateFormat.getDateInstance().format(Date(spool.addedAt))
+        val origin = when (spool.source) {
+            SpoolSource.ANYCUBIC -> "Added $added from the spool's own tag"
+            SpoolSource.CUSTOM -> "Added $added, tags written here"
+        }
+        binding.detailStatus.text = origin
+        binding.detailSpecs.text = SpoolDisplay.details(spec)
+
+        binding.detailTags.text = when (spool.source) {
+            SpoolSource.ANYCUBIC -> "Tag ${spool.tagUid}"
+            SpoolSource.CUSTOM -> "Tag 1: ${spool.tagUid}\nTag 2: ${spool.tagUid2 ?: "—"}"
         }
 
-        val df = DateFormat.getDateInstance()
-        binding.detailStatus.text = if (spool.usedUpAt != null) {
-            "Used up ${df.format(Date(spool.usedUpAt))}"
-        } else {
-            "Logged ${df.format(Date(spool.createdAt))}"
-        }
+        binding.staleCard.visibility = if (spool.tagsStale) View.VISIBLE else View.GONE
+        binding.rewriteButton.visibility =
+            if (spool.source == SpoolSource.CUSTOM) View.VISIBLE else View.GONE
 
-        val speedLine = if (spool.speedMax > 0) {
-            "\nPrint speed: ${spool.speedMin}-${spool.speedMax} mm/s"
-        } else {
-            ""
+        binding.editButton.setOnClickListener {
+            startActivity(CustomSpoolActivity.editIntent(this, spoolId))
         }
-        binding.detailSpecs.text = "Color: ${spool.color}\n" +
-            "Nozzle: ${spool.nozzleMin}-${spool.nozzleMax}°C\n" +
-            "Bed: ${spool.bedMin}-${spool.bedMax}°C$speedLine\n" +
-            "Diameter: ${spool.diameterMm}mm\n" +
-            "Length: ${spool.lengthM}m\n" +
-            "Weight: ${spool.weightG}g"
-
-        binding.detailTags.text = "Tag A: ${spool.tagUidA ?: "not written"}\n" +
-            "Tag B: ${spool.tagUidB ?: "not written"}"
-
-        binding.usedUpButton.text = if (spool.usedUpAt != null) "Restore to Active" else "Mark Used Up"
-        binding.usedUpButton.setOnClickListener {
-            lifecycleScope.launch {
-                val dao = AppDatabase.get(this@SpoolDetailActivity).spoolDao()
-                val newUsedUpAt = if (spool.usedUpAt != null) null else System.currentTimeMillis()
-                dao.update(spool.copy(usedUpAt = newUsedUpAt))
-                load()
-            }
+        binding.rewriteButton.setOnClickListener {
+            startActivity(CustomSpoolActivity.rewriteIntent(this, spoolId))
         }
+        binding.emptyButton.setOnClickListener { confirmUsedUp(spool) }
+        binding.deleteButton.setOnClickListener { confirmMistake(spool) }
     }
 
-    private fun confirmDelete() {
+    private fun confirmUsedUp(spool: SpoolEntity) {
         AlertDialog.Builder(this)
-            .setTitle("Delete this spool?")
-            .setMessage("This removes it from your inventory history. This can't be undone.")
-            .setPositiveButton("Delete") { _, _ ->
+            .setTitle("Used up?")
+            .setMessage(
+                "${SpoolDisplay.title(spool.toSpec())} comes off your shelf and goes into your " +
+                    "filament history, so you can see what you get through over time.",
+            )
+            .setPositiveButton("Used it up") { _, _ ->
                 lifecycleScope.launch {
-                    AppDatabase.get(this@SpoolDetailActivity).spoolDao().delete(spoolId)
+                    SpoolRepository.get(this@SpoolDetailActivity).markEmpty(spool)
+                    toast("Logged. One spool down.")
                     finish()
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun confirmMistake(spool: SpoolEntity) {
+        AlertDialog.Builder(this)
+            .setTitle("Remove this entry?")
+            .setMessage(
+                "Use this only if the spool shouldn't have been added — a typo, or a double scan. " +
+                    "It's removed completely and won't count as filament you've used.\n\n" +
+                    "If you finished the spool, go back and use \"I've used this spool up\" instead.",
+            )
+            .setPositiveButton("Remove") { _, _ ->
+                lifecycleScope.launch {
+                    SpoolRepository.get(this@SpoolDetailActivity).deleteMistake(spool)
+                    toast("Removed.")
+                    finish()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }

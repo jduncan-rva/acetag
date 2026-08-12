@@ -9,71 +9,76 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.jamieduncan.acetag.data.AppDatabase
-import com.jamieduncan.acetag.data.toExportJson
+import com.jamieduncan.acetag.data.SpoolRepository
+import com.jamieduncan.acetag.data.buildExportJson
+import com.jamieduncan.acetag.data.groupBySpec
 import com.jamieduncan.acetag.databinding.ActivityInventoryBinding
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+/**
+ * The whole inventory, one row per physical spool. There is no second list: a spool that's been
+ * used up is deleted, and lives on only as an event in the history.
+ */
 class InventoryActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityInventoryBinding
     private lateinit var adapter: SpoolAdapter
-    private var observeJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityInventoryBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        adapter = SpoolAdapter { spool ->
+        adapter = SpoolAdapter { group ->
+            // A group of one is just a spool — don't make you tap through a list of one to reach it.
             startActivity(
-                Intent(this, SpoolDetailActivity::class.java)
-                    .putExtra(SpoolDetailActivity.EXTRA_SPOOL_ID, spool.id),
+                if (group.count == 1) {
+                    Intent(this, SpoolDetailActivity::class.java)
+                        .putExtra(SpoolDetailActivity.EXTRA_SPOOL_ID, group.newest.id)
+                } else {
+                    SpoolGroupActivity.intent(this, group.manufacturer, group.type, group.color)
+                },
             )
         }
         binding.spoolList.layoutManager = LinearLayoutManager(this)
         binding.spoolList.adapter = adapter
 
-        binding.newSpoolButton.setOnClickListener {
-            startActivity(Intent(this, WriteSpoolActivity::class.java))
+        binding.scanButton.setOnClickListener {
+            startActivity(Intent(this, ScanActivity::class.java))
         }
-        binding.readTagButton.setOnClickListener {
-            startActivity(Intent(this, ReadTagActivity::class.java))
+        binding.customSpoolButton.setOnClickListener {
+            startActivity(Intent(this, CustomSpoolActivity::class.java))
         }
-        binding.usedUpToggle.setOnCheckedChangeListener { _, _ -> observeList() }
         binding.exportButton.setOnClickListener { exportJson() }
 
-        observeList()
+        lifecycleScope.launch {
+            SpoolRepository.get(this@InventoryActivity).observeAll().collect { spools ->
+                val groups = spools.groupBySpec()
+                adapter.submitList(groups)
+                // Counted in spools, not lines: three identical spools on one line is still three.
+                binding.countText.text = SpoolDisplay.spoolCount(spools.size)
+                binding.emptyText.visibility = if (spools.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }
     }
 
     private fun exportJson() {
         lifecycleScope.launch {
-            val spools = AppDatabase.get(this@InventoryActivity).spoolDao().getAll()
-            if (spools.isEmpty()) {
-                Toast.makeText(this@InventoryActivity, "No spools to export yet.", Toast.LENGTH_SHORT).show()
+            val repo = SpoolRepository.get(this@InventoryActivity)
+            val spools = repo.getAll()
+            val events = repo.getAllEvents()
+            if (spools.isEmpty() && events.isEmpty()) {
+                toast("Nothing to export yet.")
                 return@launch
             }
-            val json = spools.toExportJson(System.currentTimeMillis()).toString(2)
-            val clipboard = getSystemService(ClipboardManager::class.java)
-            clipboard.setPrimaryClip(ClipData.newPlainText("Spool inventory JSON", json))
-            Toast.makeText(
-                this@InventoryActivity,
-                "Copied ${spools.size} spool(s) as JSON to clipboard.",
-                Toast.LENGTH_SHORT,
-            ).show()
+            val json = buildExportJson(spools, events, System.currentTimeMillis()).toString(2)
+            getSystemService(ClipboardManager::class.java)
+                .setPrimaryClip(ClipData.newPlainText("AceTag inventory", json))
+            toast("Copied ${SpoolDisplay.spoolCount(spools.size)} and ${events.size} history entries to the clipboard.")
         }
     }
 
-    private fun observeList() {
-        observeJob?.cancel()
-        val dao = AppDatabase.get(this).spoolDao()
-        val flow = if (binding.usedUpToggle.isChecked) dao.observeUsedUp() else dao.observeActive()
-        observeJob = lifecycleScope.launch {
-            flow.collect { spools ->
-                adapter.submitList(spools)
-                binding.emptyText.visibility = if (spools.isEmpty()) View.VISIBLE else View.GONE
-            }
-        }
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }

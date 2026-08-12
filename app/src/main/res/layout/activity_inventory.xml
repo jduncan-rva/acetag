@@ -8,42 +8,49 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="16dp">
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_gravity="center_vertical"
-            android:text="@string/app_name"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="My filament"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/countText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/exportButton"
             style="?attr/borderlessButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Export JSON" />
-
-        <ToggleButton
-            android:id="@+id/usedUpToggle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textOn="Used Up"
-            android:textOff="Active" />
+            android:text="Export" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/emptyText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="48dp"
         android:gravity="center"
-        android:padding="16dp"
-        android:text="No spools yet. Tap New Spool to write and log your first one."
-        android:textStyle="italic"
+        android:paddingHorizontal="32dp"
+        android:text="Nothing here yet.\n\nScan a spool that came with a tag, or set up a spool of your own and write tags for it."
+        android:textSize="16sp"
         android:visibility="gone" />
 
     <androidx.recyclerview.widget.RecyclerView
@@ -57,24 +64,21 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="16dp">
 
         <Button
-            android:id="@+id/newSpoolButton"
-            android:layout_width="0dp"
+            android:id="@+id/scanButton"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            android:text="New Spool" />
+            android:text="Add Anycubic Filament Spool" />
 
         <Button
-            android:id="@+id/readTagButton"
+            android:id="@+id/customSpoolButton"
             style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="Read Tag" />
+            android:layout_marginTop="8dp"
+            android:text="Add Custom Filament Spool" />
     </LinearLayout>
 </LinearLayout>

@@ -1,35 +1,44 @@
 # AceTag
 
-A small Android app for writing NFC tags that the Anycubic ACE Pro reads as genuine filament
-spools — so third-party/non-Anycubic filament gets recognized and auto-identified just like the
-official stuff.
+An Android app that keeps track of your 3D printer filament, and writes NFC tags the Anycubic ACE
+Pro reads as genuine spools — so third-party filament gets recognized and auto-identified just
+like the official stuff.
 
-Everything happens on your phone: no PC, no USB NFC reader/dongle. Fill in a spool's specs, tap
-a blank NTAG213/215/216 sticker to the back of the phone, and it's written. AceTag also keeps a
-local inventory of what you've tagged, and can read tags back (yours or genuine Anycubic ones)
-to look them up or import them.
+Everything happens on your phone: no PC, no USB NFC reader/dongle.
 
 **Not affiliated with Anycubic.** The tag format was reverse-engineered by the community; see
 Credits below.
 
-## Features
+## The two ways a spool gets into your inventory
 
-- **Write tags** — pick a material type (defaults to typical temp/speed ranges for that
-  material, all editable), set a color (type a hex code or sample it with the camera), and write
-  it to a tag. Each spool needs two identical tags (one per end), and the app walks you through
-  writing both.
-- **Inventory** — every spool you write is logged locally (Room/SQLite). Mark spools used up,
-  delete them, or reprint a replacement tag if one is lost/damaged.
-- **Read tags** — read any tag back. If it matches something in your inventory, it opens that
-  record. If it's an unrecognized tag (e.g. a genuine Anycubic spool, or one written before you
-  had this app), it offers to import it.
-- **JSON export** — copies your whole inventory to the clipboard as JSON. There's no server or
-  web app yet — this just makes the data portable for whenever one exists.
+**It came with a tag** (Anycubic filament) — tap *Scan a spool's tag* and hold the spool to the
+back of your phone. Everything about the filament is already on the tag, so you just confirm it's
+the spool in your hand and add it. If you already own that exact colour and material, it says so
+and adds another one; the inventory counts spools, so three black PLAs are three spools.
+
+**It didn't** (anyone else's filament) — tap *Set up a spool without a tag*. Pick the material and
+it fills in sensible temperatures for you; type the brand and set the colour (type a hex code or
+sample it with the camera). Then you write **two stickers, one for each side of the spool**, so
+the ACE picks it up whichever way round it's loaded. The app walks you through both, and nothing
+is saved until both are written.
+
+Scanning any tag you've already got — either sticker of a spool you tagged yourself — just opens
+that spool.
+
+## Also
+
+- **Your inventory** — one entry per physical spool. Edit the details, rewrite the tags if you
+  change something, and mark a spool used up when it runs out.
+- **Filament history** — used-up spools leave the inventory but are recorded, so there's a record
+  of what you get through over time. Removing an entry you added by mistake leaves no trace, so it
+  doesn't pollute that record.
+- **JSON export** — copies your inventory and history to the clipboard. There's no server or web
+  app yet; this just makes the data portable for whenever one exists.
 
 ## Requirements
 
 - An Android phone with NFC (tap-to-write, no separate reader hardware).
-- NTAG213, NTAG215, or NTAG216 NFC stickers — two per spool.
+- NTAG213, NTAG215, or NTAG216 NFC stickers — two per spool you tag yourself.
 - Android Studio (or just the Gradle wrapper + an Android SDK) to build it. There's no signed
   release APK published yet.
 
@@ -47,13 +56,15 @@ emulator, so you'll need a physical phone.
 
 ```
 app/src/main/java/com/jamieduncan/acetag/
-  SpoolTag.kt              # Anycubic tag format: encode a Spec to raw pages, decode raw pages back
+  SpoolTag.kt               # Anycubic tag format: encode a Spec to raw pages, decode raw pages back
+  Type2Tag.kt / TagIo.kt    # raw NFC read/write, and whole-tag read/write on top of it
   InventoryActivity.kt      # home screen: spool list, export
-  WriteSpoolActivity.kt     # write flow (new spool / import / reprint)
-  ReadTagActivity.kt        # read-and-identify flow
+  ScanActivity.kt           # read a tag and route: known spool / new spool / blank sticker
+  AddSpoolActivity.kt       # confirm and add a spool that came with its own tag
+  CustomSpoolActivity.kt    # set up a spool and write both stickers; also edit/rewrite
   SpoolDetailActivity.kt    # per-spool detail + actions
   ColorPickerActivity.kt    # camera-based color sampling
-  data/                     # Room entity/DAO/DB + JSON export schema
+  data/                     # Room entities/DAO/DB, repository, JSON export schema
 scripts/spool_tag.py        # original CLI prototype (copy/paste hex into NFC Tools Pro) — superseded by the app, kept for reference
 ```
 

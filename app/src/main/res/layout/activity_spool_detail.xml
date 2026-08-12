@@ -44,42 +44,66 @@
             </LinearLayout>
         </LinearLayout>
 
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/staleCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:text="The tags on this spool were written before you changed these details, so they no longer match. Rewrite them when you have the spool to hand." />
+        </com.google.android.material.card.MaterialCardView>
+
         <TextView
             android:id="@+id/detailSpecs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:lineSpacingExtra="4dp" />
+            android:lineSpacingExtra="5dp" />
 
         <TextView
             android:id="@+id/detailTags"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:lineSpacingExtra="4dp" />
+            android:lineSpacingExtra="4dp"
+            android:textSize="12sp" />
 
         <Button
-            android:id="@+id/reprintButton"
+            android:id="@+id/emptyButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="Reprint / Write Replacement Tag" />
+            android:text="I've used this spool up" />
 
         <Button
-            android:id="@+id/usedUpButton"
+            android:id="@+id/editButton"
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Mark Used Up" />
+            android:text="Edit details" />
+
+        <Button
+            android:id="@+id/rewriteButton"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Rewrite both tags"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/deleteButton"
-            style="?attr/materialButtonOutlinedStyle"
+            style="?attr/borderlessButtonStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Delete" />
+            android:layout_marginTop="16dp"
+            android:text="Remove — I added this by mistake" />
 
     </LinearLayout>
 </ScrollView>

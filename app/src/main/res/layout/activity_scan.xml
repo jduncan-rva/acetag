@@ -8,18 +8,27 @@
     android:padding="24dp">
 
     <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:gravity="center"
+        android:text="Scan a spool"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
         android:id="@+id/statusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:text="Hold an NFC tag to the back of the phone to read it."
-        android:textSize="18sp" />
+        android:text="Hold the spool's tag against the back of your phone."
+        android:textSize="17sp" />
 
     <Button
         android:id="@+id/cancelButton"
         style="?attr/materialButtonOutlinedStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="32dp"
         android:text="Cancel" />
 </LinearLayout>
