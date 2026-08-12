@@ -142,11 +142,18 @@ private class MemberAdapter(
         fun bind(spool: SpoolEntity, isNextUp: Boolean, onClick: (SpoolEntity) -> Unit) {
             val added = DateFormat.getDateInstance().format(Date(spool.addedAt))
             title.text = if (isNextUp) "Added $added · next to be used" else "Added $added"
+            // This list is where "which of these three is the one with the tags on it" gets
+            // answered, so the tag state leads and the UID is a detail after it.
             subtitle.text = buildString {
-                append(if (spool.source == SpoolSource.CUSTOM) "Own tags" else "Factory tag")
-                append(" · ")
-                append(spool.tagUid.takeLast(8))
-                if (spool.tagsStale) append(" · tags out of date")
+                val uid = spool.tagUid
+                if (uid == null) {
+                    append("No tags on it yet")
+                } else {
+                    append(if (spool.source == SpoolSource.CUSTOM) "Own tags" else "Factory tag")
+                    append(" · ")
+                    append(uid.takeLast(8))
+                    if (spool.tagsStale) append(" · tags out of date")
+                }
             }
             itemView.setOnClickListener { onClick(spool) }
         }

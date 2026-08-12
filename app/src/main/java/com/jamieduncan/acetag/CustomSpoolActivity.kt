@@ -27,23 +27,31 @@ import kotlinx.coroutines.launch
  * to the inventory until both stickers are written, because a half-tagged spool in the inventory
  * would claim to work in the printer when it only works one way up.
  *
+ * Writing is optional, though. Filament under 1 kg can't reach the ACE's reader on its own and has
+ * to sit on an adapter; a refill has no spool at all. In both cases one pair of stickers serves
+ * whichever filament is mounted at the time, so a spool can be added now and tagged later, when
+ * it's the one going in the printer. Hence "Just add it to my inventory" beside the write button:
+ * the choice is offered at the only moment it means anything, and the spool is real either way.
+ *
  * Also handles editing an existing spool, since it's the same form and editing a spec is what
  * makes stickers go stale:
- *  - CREATE (no extras) — new spool, write both stickers, then save.
+ *  - CREATE (no extras) — new spool, write both stickers, or add it untagged.
  *  - EDIT ([EXTRA_SPOOL_ID]) — change an existing spool's details.
- *  - REWRITE ([EXTRA_SPOOL_ID] + [EXTRA_REWRITE]) — straight into writing both stickers again.
+ *  - WRITE ([EXTRA_SPOOL_ID] + [EXTRA_WRITE]) — straight into writing both stickers: a rewrite, or
+ *    a first set of tags for a spool that was added without any.
  */
 class CustomSpoolActivity : NfcActivity() {
 
     companion object {
         private const val EXTRA_SPOOL_ID = "spool_id"
-        private const val EXTRA_REWRITE = "rewrite"
+        private const val EXTRA_WRITE = "write"
 
         fun editIntent(context: Context, spoolId: Long) =
             Intent(context, CustomSpoolActivity::class.java).putExtra(EXTRA_SPOOL_ID, spoolId)
 
-        fun rewriteIntent(context: Context, spoolId: Long) =
-            editIntent(context, spoolId).putExtra(EXTRA_REWRITE, true)
+        /** Straight into the write flow for a spool already in the inventory. */
+        fun writeIntent(context: Context, spoolId: Long) =
+            editIntent(context, spoolId).putExtra(EXTRA_WRITE, true)
     }
 
     private enum class Step {
@@ -57,9 +65,9 @@ class CustomSpoolActivity : NfcActivity() {
     private lateinit var binding: ActivityCustomSpoolBinding
     private lateinit var materials: List<String>
 
-    /** Non-null in EDIT and REWRITE. */
+    /** Non-null in EDIT and WRITE. */
     private var existing: SpoolEntity? = null
-    private var rewriting = false
+    private var writingExisting = false
 
     private var step = Step.FORM
     private var groupId: ByteArray = SpoolTag.randomGroupId()
@@ -67,10 +75,21 @@ class CustomSpoolActivity : NfcActivity() {
     private var specBeingWritten: SpoolTag.Spec? = null
 
     /**
-     * UIDs already spoken for, loaded before arming so the check at tap time is synchronous —
-     * we can't go to the database and back while the tag is still in the field.
+     * Which spool currently wears each recorded sticker, loaded before arming so a tap can be
+     * answered synchronously — we can't go to the database and back while the tag is in the field.
      */
-    private var claimedUids: Set<String> = emptySet()
+    private var owners: Map<String, SpoolEntity> = emptyMap()
+
+    /**
+     * Spools the user has agreed to take stickers off, keyed by row id. A tag stays in the field
+     * for a moment, so the confirmation can't be answered while it's still readable — the dialog
+     * asks, and the *next* tap of that sticker goes through. Approving is per spool, not per
+     * sticker, so the second sticker of the same pair never asks again.
+     */
+    private val approvedMoves = mutableSetOf<Long>()
+
+    /** Set while the form is being populated in code, so weight doesn't clobber a stored length. */
+    private var fillingForm = false
 
     private var pendingMatchHex: String? = null
 
@@ -99,6 +118,7 @@ class CustomSpoolActivity : NfcActivity() {
         )
 
         binding.colorInput.doOnTextChanged { text, _, _, _ -> onColorChanged(text?.toString()) }
+        binding.weightInput.doOnTextChanged { text, _, _, _ -> onWeightChanged(text?.toString()) }
         binding.cameraButton.setOnClickListener {
             pickColor.launch(Intent(this, ColorPickerActivity::class.java))
         }
@@ -132,10 +152,16 @@ class CustomSpoolActivity : NfcActivity() {
         applyMaterialDefaults(materials.first())
         onMaterialChanged()
         binding.primaryButton.setOnClickListener { startWriting() }
+
+        // The spool is real whether or not it has stickers on it, so adding one without writing is
+        // an ordinary thing to do, not a fallback. It's offered here rather than as a third button
+        // on the inventory screen because this is the only point where the difference is legible.
+        binding.secondaryButton.visibility = View.VISIBLE
+        binding.secondaryButton.setOnClickListener { saveWithoutTags() }
     }
 
     private fun setUpForExisting(spoolId: Long) {
-        rewriting = intent.getBooleanExtra(EXTRA_REWRITE, false)
+        writingExisting = intent.getBooleanExtra(EXTRA_WRITE, false)
         binding.primaryButton.isEnabled = false
         lifecycleScope.launch {
             val spool = SpoolRepository.get(this@CustomSpoolActivity).getById(spoolId)
@@ -148,10 +174,17 @@ class CustomSpoolActivity : NfcActivity() {
             fillForm(spool)
             binding.primaryButton.isEnabled = true
 
-            if (rewriting) {
-                binding.headingText.text = "Rewrite this spool's tags"
-                binding.statusText.text =
-                    "You'll write both stickers again, one for each side of the spool."
+            if (writingExisting) {
+                if (spool.hasTags) {
+                    binding.headingText.text = "Rewrite this spool's tags"
+                    binding.statusText.text =
+                        "You'll write both stickers again, one for each side of the spool."
+                } else {
+                    binding.headingText.text = "Put the tags on this spool"
+                    binding.statusText.text =
+                        "Hold each sticker against the phone in turn — one for each side. If " +
+                        "they're on another spool right now, you'll be asked before they move."
+                }
                 binding.primaryButton.text = "Write the tags"
                 binding.primaryButton.setOnClickListener { startWriting() }
             } else {
@@ -166,7 +199,7 @@ class CustomSpoolActivity : NfcActivity() {
 
     // ---------------------------------------------------------------- form
 
-    private fun fillForm(spool: SpoolEntity) {
+    private fun fillForm(spool: SpoolEntity) = withoutAutoLength {
         binding.typeInput.setText(spool.baseMaterial, false)
         binding.finishInput.setText(spool.finishEnum.label, false)
         // Only re-apply defaults on an explicit material change; an existing spool's own numbers win.
@@ -219,8 +252,30 @@ class CustomSpoolActivity : NfcActivity() {
             if (finish.abrasive) View.VISIBLE else View.GONE
     }
 
-    private fun applyMaterialDefaults(type: String) {
-        val d = SpoolTag.MATERIAL_DEFAULTS[type] ?: return
+    /**
+     * Weight is the field that actually differs on a small spool, and length is the one that has
+     * to follow it: the ACE counts down from what the tag claims, so 250 g written with a 1 kg
+     * length reports four times the filament it has. Nobody is going to work out 82 m by hand, so
+     * the field fills itself, visibly, and stays editable for anyone who knows better.
+     */
+    private fun onWeightChanged(text: String?) {
+        if (fillingForm) return
+        val weight = text?.trim()?.toIntOrNull() ?: return
+        val length = SpoolTag.lengthForWeight(selectedBase(), weight)
+        if (length > 0) withoutAutoLength { binding.lengthInput.setText(length.toString()) }
+    }
+
+    private inline fun withoutAutoLength(block: () -> Unit) {
+        fillingForm = true
+        try {
+            block()
+        } finally {
+            fillingForm = false
+        }
+    }
+
+    private fun applyMaterialDefaults(type: String) = withoutAutoLength {
+        val d = SpoolTag.MATERIAL_DEFAULTS[type] ?: return@withoutAutoLength
         binding.nozzleMinInput.setText(d.nozzleMin.toString())
         binding.nozzleMaxInput.setText(d.nozzleMax.toString())
         binding.bedMinInput.setText(d.bedMin.toString())
@@ -337,14 +392,16 @@ class CustomSpoolActivity : NfcActivity() {
         val changed = spool.specDiffersFrom(spec)
         lifecycleScope.launch {
             val repo = SpoolRepository.get(this@CustomSpoolActivity)
-            val stale = spool.tagsStale || (changed && spool.source == SpoolSource.CUSTOM)
+            // Only tags that exist can be out of date; a spool waiting for stickers just carries
+            // its new details into whatever gets written next.
+            val stale = spool.hasTags && (spool.tagsStale || changed)
             // The finish rides along outside the spec: switching wood to carbon fibre changes
             // nothing the stickers carry, so it saves without making them stale.
             val updated = spool.withSpec(spec)
                 .copy(finish = selectedFinish().name, tagsStale = stale)
             repo.updateSpool(updated)
 
-            if (changed && spool.source == SpoolSource.CUSTOM) {
+            if (changed && spool.hasTags && spool.source == SpoolSource.CUSTOM) {
                 AlertDialog.Builder(this@CustomSpoolActivity)
                     .setTitle("Saved — but the stickers are out of date")
                     .setMessage(
@@ -353,7 +410,7 @@ class CustomSpoolActivity : NfcActivity() {
                     )
                     .setPositiveButton("Rewrite now") { _, _ ->
                         existing = updated.copy(tagsStale = true)
-                        rewriting = true
+                        writingExisting = true
                         startWriting()
                     }
                     .setNegativeButton("Later") { _, _ -> finish() }
@@ -378,9 +435,11 @@ class CustomSpoolActivity : NfcActivity() {
 
         lifecycleScope.launch {
             val repo = SpoolRepository.get(this@CustomSpoolActivity)
-            // A rewrite lands on the spool's own stickers, so those two don't count as taken.
-            val own = setOfNotNull(existing?.tagUid, existing?.tagUid2)
-            claimedUids = repo.allTagUids().toSet() - own
+            owners = repo.tagOwners()
+            // A rewrite lands on the spool's own stickers: a move from itself, already agreed to
+            // by having tapped "rewrite", so it never stops to ask.
+            approvedMoves.clear()
+            existing?.let { approvedMoves.add(it.id) }
 
             firstUid = null
             step = Step.AWAITING_FIRST
@@ -402,10 +461,7 @@ class CustomSpoolActivity : NfcActivity() {
 
     private fun writeFirst(tag: Tag, spec: SpoolTag.Spec) {
         val uid = TagIo.uidOf(tag)
-        if (uid in claimedUids) {
-            setStatus("That sticker already belongs to another spool. Use a different one for sticker 1.")
-            return
-        }
+        if (!approveOwner(uid, "1")) return
         try {
             TagIo.write(tag, spec, groupId)
         } catch (e: Exception) {
@@ -423,10 +479,7 @@ class CustomSpoolActivity : NfcActivity() {
             setStatus("That's the sticker you just wrote. Use the second one, for the other side of the spool.")
             return
         }
-        if (uid in claimedUids) {
-            setStatus("That sticker already belongs to another spool. Use a different one for sticker 2.")
-            return
-        }
+        if (!approveOwner(uid, "2")) return
         try {
             TagIo.write(tag, spec, groupId)
         } catch (e: Exception) {
@@ -437,7 +490,56 @@ class CustomSpoolActivity : NfcActivity() {
         save(spec, firstUid!!, uid)
     }
 
+    /**
+     * True if this sticker is free to use. A sticker worn by another spool isn't refused — moving
+     * a pair from one spool to another is the point — but it is never taken silently.
+     *
+     * The confirmation can't be answered while the tag is still readable, so this asks and returns
+     * false; the next tap of that sticker goes through. Approval is per spool, so the other half
+     * of the same pair doesn't ask again.
+     */
+    private fun approveOwner(uid: String, sticker: String): Boolean {
+        val owner = owners[uid] ?: return true
+        if (owner.id in approvedMoves) return true
+        confirmMove(owner, sticker)
+        return false
+    }
+
+    private fun confirmMove(owner: SpoolEntity, sticker: String) {
+        val name = SpoolDisplay.title(owner)
+        AlertDialog.Builder(this)
+            .setTitle("These tags are on $name")
+            .setMessage(
+                "Moving them to ${targetName()}.\n\n" +
+                    "$name stays in your inventory — the printer just won't see it until it " +
+                    "gets tags again.",
+            )
+            .setPositiveButton("Move them") { _, _ ->
+                approvedMoves.add(owner.id)
+                setStatus("Hold sticker $sticker against the back of the phone again.")
+            }
+            .setNegativeButton("Cancel") { _, _ ->
+                setStatus("Nothing moved. Use a different sticker for sticker $sticker, or cancel.")
+            }
+            .show()
+    }
+
+    /** What the spool being written is called, whether it's in the inventory yet or not. */
+    private fun targetName(): String {
+        existing?.let { return SpoolDisplay.title(it) }
+        val name = FilamentMaterial.displayName(selectedBase(), selectedFinish())
+        val brand = specBeingWritten?.manufacturer ?: return name
+        return "${SpoolDisplay.brand(brand)} ${SpoolDisplay.material(name)}".trim()
+    }
+
     private fun save(spec: SpoolTag.Spec, uid1: String, uid2: String) {
+        // Read before the write lands, while `owners` still describes the old arrangement.
+        val displaced = listOf(uid1, uid2)
+            .mapNotNull { owners[it] }
+            .distinctBy { it.id }
+            .filter { it.id != existing?.id }
+        val rewrote = existing?.hasTags == true
+
         lifecycleScope.launch {
             val repo = SpoolRepository.get(this@CustomSpoolActivity)
             val spool = existing
@@ -451,18 +553,48 @@ class CustomSpoolActivity : NfcActivity() {
                         finish = selectedFinish(),
                     ),
                 )
-                val name = FilamentMaterial.displayName(selectedBase(), selectedFinish())
-                toast("Both tags written. ${SpoolDisplay.brand(spec.manufacturer)} $name added to your inventory.")
             } else {
-                // markTagsFresh writes the whole row, so the edited spec rides along with it.
-                repo.markTagsFresh(
+                // moveTagsTo writes the whole row, so the edited spec rides along with it.
+                repo.moveTagsTo(
                     spool.withSpec(spec).copy(finish = selectedFinish().name),
                     uid1,
                     uid2,
                     groupId.toHexString(),
                 )
-                toast("Both tags rewritten.")
             }
+            toastLong(writeSummary(displaced, rewrote))
+            finish()
+        }
+    }
+
+    /**
+     * Names both sides of the trade. A move costs one spool its tags, and saying so is what keeps
+     * the inventory believable — otherwise a spool quietly stops being printable.
+     */
+    private fun writeSummary(displaced: List<SpoolEntity>, rewrote: Boolean): String = when {
+        displaced.isNotEmpty() -> {
+            val names = displaced.joinToString(" and ") { SpoolDisplay.title(it) }
+            val verb = if (displaced.size == 1) "no longer has tags" else "no longer have tags"
+            "${targetName()} is ready to print. $names $verb."
+        }
+        rewrote -> "Both tags rewritten."
+        existing != null -> "Both tags written. ${targetName()} is ready to print."
+        else -> "Both tags written. ${targetName()} added to your inventory."
+    }
+
+    /**
+     * Adds the spool with no stickers on it. Normal for anything that rides on an adapter or a
+     * reused spool: the filament is on the shelf and counted, and the tags go on when it's the
+     * one going in the printer.
+     */
+    private fun saveWithoutTags() {
+        val spec = readSpec() ?: return
+        specBeingWritten = spec
+        lifecycleScope.launch {
+            SpoolRepository.get(this@CustomSpoolActivity).addSpool(
+                spec.toSpool(source = SpoolSource.CUSTOM, finish = selectedFinish()),
+            )
+            toastLong("${targetName()} added. Put the tags on it when it goes in the printer.")
             finish()
         }
     }
@@ -496,5 +628,10 @@ class CustomSpoolActivity : NfcActivity() {
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    /** For the outcomes worth reading — a move names two spools and needs longer than a blink. */
+    private fun toastLong(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 }

@@ -57,38 +57,50 @@ class SpoolDetailActivity : AppCompatActivity() {
         binding.detailAbrasive.visibility = if (spool.isAbrasive) View.VISIBLE else View.GONE
 
         val added = DateFormat.getDateInstance().format(Date(spool.addedAt))
-        val origin = when (spool.source) {
-            SpoolSource.ANYCUBIC -> "Added $added from the spool's own tag"
-            SpoolSource.CUSTOM -> "Added $added, tags written here"
+        val origin = when {
+            // Stated plainly and without alarm: a spool waiting for tags is on the shelf and
+            // counted, it just can't go in the printer yet. Nothing has gone wrong.
+            !spool.hasTags -> "Added $added · no tags on it right now"
+            spool.source == SpoolSource.ANYCUBIC -> "Added $added from the spool's own tag"
+            else -> "Added $added, tags written here"
         }
         binding.detailStatus.text = origin
         binding.detailSpecs.text = SpoolDisplay.details(spec)
 
+        binding.untaggedCard.visibility = if (spool.hasTags) View.GONE else View.VISIBLE
+        binding.detailTags.visibility = if (spool.hasTags) View.VISIBLE else View.GONE
         binding.detailTags.text = when (spool.source) {
-            SpoolSource.ANYCUBIC -> "Tag ${spool.tagUid}"
-            SpoolSource.CUSTOM -> "Tag 1: ${spool.tagUid}\nTag 2: ${spool.tagUid2 ?: "—"}"
+            SpoolSource.ANYCUBIC -> "Tag ${spool.tagUid ?: "—"}"
+            SpoolSource.CUSTOM -> "Tag 1: ${spool.tagUid ?: "—"}\nTag 2: ${spool.tagUid2 ?: "—"}"
         }
 
         binding.staleCard.visibility = if (spool.tagsStale) View.VISIBLE else View.GONE
+        // An Anycubic spool that still wears its factory tag is the one case with nothing to
+        // write: we didn't make that tag and have no business overwriting it.
         binding.rewriteButton.visibility =
-            if (spool.source == SpoolSource.CUSTOM) View.VISIBLE else View.GONE
+            if (spool.source == SpoolSource.CUSTOM || !spool.hasTags) View.VISIBLE else View.GONE
+        binding.rewriteButton.text =
+            if (spool.hasTags) "Rewrite both tags" else "Put the tags on this spool"
 
         binding.editButton.setOnClickListener {
             startActivity(CustomSpoolActivity.editIntent(this, spoolId))
         }
         binding.rewriteButton.setOnClickListener {
-            startActivity(CustomSpoolActivity.rewriteIntent(this, spoolId))
+            startActivity(CustomSpoolActivity.writeIntent(this, spoolId))
         }
         binding.emptyButton.setOnClickListener { confirmUsedUp(spool) }
         binding.deleteButton.setOnClickListener { confirmMistake(spool) }
     }
 
     private fun confirmUsedUp(spool: SpoolEntity) {
+        // The tags come free automatically — they're on an adapter or a reused spool that the next
+        // filament will want. Said out loud so it isn't a surprise, but never a separate step.
+        val tags = if (spool.hasTags) "\n\nIts tags come free for another spool." else ""
         AlertDialog.Builder(this)
             .setTitle("Used up?")
             .setMessage(
                 "${SpoolDisplay.title(spool)} comes off your shelf and goes into your " +
-                    "filament history, so you can see what you get through over time.",
+                    "filament history, so you can see what you get through over time.$tags",
             )
             .setPositiveButton("Used it up") { _, _ ->
                 lifecycleScope.launch {

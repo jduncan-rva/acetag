@@ -65,6 +65,19 @@ object SpoolDisplay {
 
     /** "3 spools" / "1 spool" — the inventory is counted in spools, so say so. */
     fun spoolCount(n: Int): String = if (n == 1) "1 spool" else "$n spools"
+
+    /**
+     * Whether the printer can see these spools, in as few words as the list line allows.
+     *
+     * Only says anything when the answer isn't uniform. A line reading "3 spools" where one of
+     * them happens to be wearing the adapter's stickers can't show that with a single icon, and
+     * silently implying all three are ready is the mistake worth avoiding.
+     */
+    fun tagState(taggedCount: Int, total: Int): String? = when {
+        taggedCount == total -> null
+        taggedCount == 0 -> "No tags on it yet"
+        else -> "$taggedCount of $total tagged"
+    }
 }
 
 /** Paints a swatch view with a "#rrggbb" colour, leaving it alone if the hex is unusable. */

@@ -66,6 +66,20 @@
                 android:text="The tags on this spool were written before you changed these details, so they no longer match. Rewrite them when you have the spool to hand." />
         </com.google.android.material.card.MaterialCardView>
 
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/untaggedCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:text="The printer can't see this spool until the tags are on it. Put them on when it's the one going in — they'll come off whatever spool is wearing them now." />
+        </com.google.android.material.card.MaterialCardView>
+
         <TextView
             android:id="@+id/detailSpecs"
             android:layout_width="match_parent"

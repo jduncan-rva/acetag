@@ -30,7 +30,7 @@ class Converters {
  */
 @Database(
     entities = [SpoolEntity::class, SpoolEventEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -69,13 +69,68 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Makes `tagUid` nullable, so a spool can exist without stickers on it.
+         *
+         * Filament under 1 kg rides on an adapter and refills ride on a reused spool, and in both
+         * cases one pair of stickers serves whichever filament is currently mounted. So the tags
+         * had to stop being a permanent property of a spool and become something a spool holds for
+         * now. Existing rows all have tags and keep them; nothing is lost or rewritten.
+         *
+         * SQLite can't drop a NOT NULL in place, hence the rebuild. The unique indices are
+         * recreated exactly as before — SQLite treats NULLs as distinct, so any number of untagged
+         * spools coexist while two spools still can't claim one sticker.
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            private val COLUMNS =
+                "id, spoolKey, source, tagUid, tagUid2, groupId, type, finish, manufacturer, " +
+                    "color, nozzleMin, nozzleMax, bedMin, bedMax, speedMin, speedMax, " +
+                    "diameterMm, lengthM, weightG, tagsStale, addedAt"
+
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE spools_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        spoolKey TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        tagUid TEXT,
+                        tagUid2 TEXT,
+                        groupId TEXT,
+                        type TEXT NOT NULL,
+                        finish TEXT NOT NULL,
+                        manufacturer TEXT NOT NULL,
+                        color TEXT NOT NULL,
+                        nozzleMin INTEGER NOT NULL,
+                        nozzleMax INTEGER NOT NULL,
+                        bedMin INTEGER NOT NULL,
+                        bedMax INTEGER NOT NULL,
+                        speedMin INTEGER NOT NULL,
+                        speedMax INTEGER NOT NULL,
+                        diameterMm REAL NOT NULL,
+                        lengthM INTEGER NOT NULL,
+                        weightG INTEGER NOT NULL,
+                        tagsStale INTEGER NOT NULL,
+                        addedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("INSERT INTO spools_new ($COLUMNS) SELECT $COLUMNS FROM spools")
+                db.execSQL("DROP TABLE spools")
+                db.execSQL("ALTER TABLE spools_new RENAME TO spools")
+                db.execSQL("CREATE UNIQUE INDEX index_spools_tagUid ON spools (tagUid)")
+                db.execSQL("CREATE UNIQUE INDEX index_spools_tagUid2 ON spools (tagUid2)")
+                db.execSQL("CREATE UNIQUE INDEX index_spools_spoolKey ON spools (spoolKey)")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "acetag2.db",
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
             }
     }
 }

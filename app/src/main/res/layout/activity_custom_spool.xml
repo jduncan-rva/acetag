@@ -428,6 +428,14 @@
             android:text="Write the tags" />
 
         <Button
+            android:id="@+id/secondaryButton"
+            style="?attr/borderlessButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Just add it to my inventory"
+            android:visibility="gone" />
+
+        <Button
             android:id="@+id/cancelButton"
             style="?attr/borderlessButtonStyle"
             android:layout_width="match_parent"

@@ -19,6 +19,14 @@ object SpoolTag {
     // -color spools). Absent/zero on genuine Anycubic tags and tags written before this existed.
     const val GROUP_ID_PAGE = 0x20
 
+    // Byte 3 of the last page is 0x4D on every tag this app writes and 0x00 on every genuine
+    // Anycubic dump. It's what lets a scan tell "a spool I've never seen" from "a sticker I wrote
+    // that isn't on a spool any more" — the second is offered to an existing spool rather than
+    // added as a new one, which is the whole point of tags being movable.
+    const val CUSTOM_MARKER_PAGE = 0x27
+    private const val CUSTOM_MARKER_INDEX = 3
+    private const val CUSTOM_MARKER = 0x4D
+
     fun randomGroupId(): ByteArray = ByteArray(4).also { kotlin.random.Random.nextBytes(it) }
 
     data class Defaults(
@@ -171,6 +179,24 @@ object SpoolTag {
         }
     }
 
+    /** True if this app wrote the tag, rather than it coming off a factory Anycubic spool. */
+    fun isCustomWritten(t: Pages): Boolean =
+        t.readByte(CUSTOM_MARKER_PAGE, CUSTOM_MARKER_INDEX) == CUSTOM_MARKER
+
+    /**
+     * How much filament a spool of [weightG] holds, scaled from the material's own full-spool
+     * figures. A 250 g spool written with a 1 kg length tells the ACE it has four times the
+     * filament it does, so the remaining-length estimate is wrong from the first gram.
+     *
+     * Zero when the material has no published defaults to scale from — the caller leaves the
+     * field alone rather than inventing a number, same as [MATERIAL_DEFAULTS] lookups elsewhere.
+     */
+    fun lengthForWeight(type: String, weightG: Int): Int {
+        val d = MATERIAL_DEFAULTS[type] ?: return 0
+        if (weightG <= 0 || d.weightG <= 0) return 0
+        return Math.round(d.lengthM.toDouble() * weightG / d.weightG).toInt()
+    }
+
     /** Returns null if this doesn't look like an Anycubic-format tag (missing the format marker). */
     fun decode(t: Pages): Spec? {
         if (t.readByte(0x04, 0) != 0x7B) return null
@@ -197,7 +223,7 @@ object SpoolTag {
         // Static markers
         t.writeByte(0x04, 0, 0x7B)
         t.writeByte(0x04, 2, 0x65) // format version 2
-        t.writeByte(0x27, 3, 0x4D) // custom spool marker
+        t.writeByte(CUSTOM_MARKER_PAGE, CUSTOM_MARKER_INDEX, CUSTOM_MARKER)
         groupId?.let { t.writeGroupId(it) }
 
         t.writeString(0x05, FilamentMaterial.skuForTagType(spec.type))

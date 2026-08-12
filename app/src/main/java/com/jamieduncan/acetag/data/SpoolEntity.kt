@@ -29,6 +29,17 @@ enum class SpoolSource { ANYCUBIC, CUSTOM }
  * That distinction is the whole ballgame: looking up a UID we recorded is fine, but never *infer*
  * which spool a tag belongs to by matching specs, group ID, or "open slots". That was tried; it
  * silently merged separate spools into one row and undercounted the inventory.
+ *
+ * ## Tags are movable, so a spool may have none
+ * Both UID columns are nullable, and that is a normal state, not a broken one. A spool under 1 kg
+ * doesn't reach the ACE's reader and has to sit on an adapter; a refill has no spool of its own.
+ * In both cases the stickers live on reusable hardware that other filament will use later, so the
+ * pair of stickers moves from spool to spool while the spools themselves stay put in the
+ * inventory. A spool with no tags is on the shelf and counted — the printer just can't see it yet.
+ *
+ * Moving a pair means clearing it off the previous owner in the same transaction that sets it on
+ * the new one; see [SpoolRepository.moveTagsTo]. The unique indices make that ordering mandatory
+ * rather than optional, which is the point — two rows can never claim one sticker.
  */
 @Entity(
     tableName = "spools",
@@ -49,10 +60,13 @@ data class SpoolEntity(
 
     val source: SpoolSource,
 
-    /** The scanned factory tag (ANYCUBIC) or the first sticker we wrote (CUSTOM). */
-    val tagUid: String,
+    /**
+     * The scanned factory tag (ANYCUBIC) or the first sticker we wrote (CUSTOM).
+     * Null when this spool has no tags on it right now — see the class note.
+     */
+    val tagUid: String? = null,
 
-    /** The second sticker on a CUSTOM spool. Always null for ANYCUBIC. */
+    /** The second sticker on a CUSTOM spool. Always null for ANYCUBIC, and null when untagged. */
     val tagUid2: String? = null,
 
     /**
@@ -139,12 +153,27 @@ data class SpoolEntity(
 
     /** Wood- and carbon-filled filament eats brass nozzles; worth flagging in the list. */
     val isAbrasive: Boolean get() = finishEnum.abrasive
+
+    /**
+     * The stickers are on this spool right now, so the printer can see it. A CUSTOM spool needs
+     * both — one sticker only works with the spool one way up, which is why the write is
+     * all-or-nothing in the first place.
+     */
+    val hasTags: Boolean
+        get() = when (source) {
+            SpoolSource.ANYCUBIC -> tagUid != null
+            SpoolSource.CUSTOM -> tagUid != null && tagUid2 != null
+        }
+
+    /** The UIDs this spool currently holds, for releasing them to another spool. */
+    val tagUids: List<String> get() = listOfNotNull(tagUid, tagUid2)
 }
 
 /** Builds an inventory row from a decoded or user-entered spec. */
 fun SpoolTag.Spec.toSpool(
     source: SpoolSource,
-    tagUid: String,
+    /** Null for a spool added without writing anything — it gets tags when it goes in the printer. */
+    tagUid: String? = null,
     tagUid2: String? = null,
     groupId: String? = null,
     /** Defaults to whatever the type string implies — right for scanned Anycubic tags, which is

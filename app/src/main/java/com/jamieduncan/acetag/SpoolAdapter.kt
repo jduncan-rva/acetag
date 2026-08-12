@@ -34,6 +34,7 @@ class SpoolAdapter(
         private val title: TextView = view.findViewById(R.id.itemTitle)
         private val subtitle: TextView = view.findViewById(R.id.itemSubtitle)
         private val abrasive: TextView = view.findViewById(R.id.itemAbrasive)
+        private val untagged: TextView = view.findViewById(R.id.itemUntagged)
         private val warning: TextView = view.findViewById(R.id.itemWarning)
         private val count: TextView = view.findViewById(R.id.itemCount)
 
@@ -44,6 +45,10 @@ class SpoolAdapter(
             subtitle.text = SpoolDisplay.summary(spec)
             abrasive.text = SpoolDisplay.ABRASIVE_LABEL
             abrasive.visibility = if (group.isAbrasive) View.VISIBLE else View.GONE
+            // Plain text, no warning styling: filament waiting for tags is filament you own.
+            val tagState = SpoolDisplay.tagState(group.taggedCount, group.count)
+            untagged.text = tagState.orEmpty()
+            untagged.visibility = if (tagState == null) View.GONE else View.VISIBLE
             warning.visibility = if (group.hasStaleTags) View.VISIBLE else View.GONE
             count.text = "×${group.count}"
             count.visibility = if (group.count > 1) View.VISIBLE else View.GONE

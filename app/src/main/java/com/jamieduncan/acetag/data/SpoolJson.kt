@@ -19,14 +19,22 @@ import org.json.JSONObject
  * The two are separate on purpose: wood-filled PETG has no Anycubic SKU, so its tag says "PETG"
  * and only `finish` records the rest. Consumers that want to show a filament to a human want
  * `materialName`; consumers reasoning about what's physically encoded on the sticker want `type`.
+ *
+ * v7 makes `tagUid` optional and adds `hasTags`. Tags became movable between spools — filament
+ * under 1 kg rides on an adapter and refills ride on a reused spool, so one pair of stickers
+ * serves whichever spool is mounted. A spool with no tags is ordinary inventory, not a broken
+ * record, and a consumer must not treat a missing `tagUid` as a malformed row. `hasTags` is
+ * derived rather than stored, and is there so a reader doesn't have to know that an Anycubic spool
+ * needs one UID while a custom one needs two.
  */
-const val SPOOL_SCHEMA_VERSION = 6
+const val SPOOL_SCHEMA_VERSION = 7
 
 fun SpoolEntity.toJson(): JSONObject = JSONObject().apply {
     put("spoolKey", spoolKey)
     put("source", source.name)
     put("tagUid", tagUid)
     put("tagUid2", tagUid2)
+    put("hasTags", hasTags)
     put("groupId", groupId)
     put("type", type)
     put("finish", finish)

@@ -16,6 +16,8 @@ object TagIo {
         /** Null when the tag isn't in Anycubic spool format — blank sticker, or something else. */
         val spec: SpoolTag.Spec?,
         val groupIdHex: String?,
+        /** This app wrote it. With an unrecorded UID, that means a sticker not on any spool. */
+        val writtenHere: Boolean,
     )
 
     fun uidOf(tag: Tag): String = tag.id.joinToString("") { "%02x".format(it) }
@@ -34,7 +36,12 @@ object TagIo {
                 page += 4
             }
             val pages = SpoolTag.Pages.fromBytes(raw)
-            ReadResult(uidOf(tag), SpoolTag.decode(pages), pages.readGroupIdHex())
+            ReadResult(
+                uid = uidOf(tag),
+                spec = SpoolTag.decode(pages),
+                groupIdHex = pages.readGroupIdHex(),
+                writtenHere = SpoolTag.isCustomWritten(pages),
+            )
         }
     }
 

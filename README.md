@@ -9,7 +9,9 @@ Everything happens on your phone: no PC, no USB NFC reader/dongle.
 **Not affiliated with Anycubic.** The tag format was reverse-engineered by the community; see
 Credits below.
 
-## The two ways a spool gets into your inventory
+<img src="https://static.jduncan.io/images/acetag/inventory.png" width="280" align="right" />
+
+## How a spool gets into your inventory
 
 **It came with a tag** (Anycubic filament) — tap *Scan a spool's tag* and hold the spool to the
 back of your phone. Everything about the filament is already on the tag, so you just confirm it's
@@ -22,8 +24,47 @@ hex code or sample it with the camera). Then you write **two stickers, one for e
 spool**, so the ACE picks it up whichever way round it's loaded. The app walks you through both,
 and nothing is saved until both are written.
 
+**It can't hold a tag** (anything under 1 kg, or a refill) — add it now, tag it when it goes in
+the printer. See [Small spools and refills](#small-spools-and-refills).
+
 Scanning any tag you've already got — either sticker of a spool you tagged yourself — just opens
 that spool.
+
+<br clear="right" />
+
+## Small spools and refills
+
+A spool under 1 kg doesn't fit the ACE Pro's rollers, and once it's on an adapter it no longer
+lines up with the NFC reader — so the tag has to go on the *adapter*. A refill has no spool of its
+own at all. Either way the stickers live on reusable hardware, and whatever filament is mounted on
+it is what the printer reads.
+
+So in AceTag **the tags move**. A pair of stickers is on one spool now and can be moved to another,
+while the spools themselves stay put in your inventory. Nobody peels anything.
+
+<table>
+<tr>
+<td><img src="https://static.jduncan.io/images/acetag/add-small-spool.png" width="260" /></td>
+<td><img src="https://static.jduncan.io/images/acetag/spool-without-tags.png" width="260" /></td>
+</tr>
+</table>
+
+- **Add it without writing anything** — *Just add it to my inventory*, under the write button. The
+  spool is on your shelf and counted; the printer just can't see it yet. Set the weight and the
+  length follows it (250 g of PLA is 83 m), because the ACE counts remaining filament down from
+  whatever the tag claims — a small spool written with a 1 kg length is wrong from the first gram.
+- **Tag it when it's the one going in the printer** — open the spool and tap *Put the tags on this
+  spool*, then hold each sticker to the phone in turn.
+- **Moving a pair is never silent.** If those stickers are on another spool, AceTag names it and
+  asks first — *"These tags are on Anycubic PLA"* — and tells you afterwards which spool lost them.
+  That spool stays in your inventory; it just goes back to having no tags.
+- **Or start from the sticker.** Scan an adapter that isn't on any spool and AceTag offers it to
+  the spools that are waiting for tags. That's the quick one at the printer, when the adapter is
+  already in your hand.
+- **Using a spool up frees its stickers**, so there's no release step to forget.
+
+The inventory says which is which at a glance: a line reads *No tags on it yet*, or *1 of 3
+tagged* when only some of a group are.
 
 ## Materials and finishes
 
@@ -43,6 +84,8 @@ are also flagged **abrasive · hardened nozzle** wherever they're listed.
 
 ## Also
 
+<img src="https://static.jduncan.io/images/acetag/writing-tags.png" width="240" align="right" />
+
 - **Your inventory** — one entry per physical spool. Edit the details, rewrite the tags if you
   change something, and mark a spool used up when it runs out.
 - **Filament history** — used-up spools leave the inventory but are recorded, so there's a record
@@ -51,10 +94,13 @@ are also flagged **abrasive · hardened nozzle** wherever they're listed.
 - **JSON export** — copies your inventory and history to the clipboard. There's no server or web
   app yet; this just makes the data portable for whenever one exists.
 
+<br clear="right" />
+
 ## Requirements
 
 - An Android phone with NFC (tap-to-write, no separate reader hardware).
-- NTAG213, NTAG215, or NTAG216 NFC stickers — two per spool you tag yourself.
+- NTAG213, NTAG215, or NTAG216 NFC stickers — two per spool you tag yourself, or two per adapter
+  if you're rotating small spools and refills through one.
 - Android Studio (or just the Gradle wrapper + an Android SDK) to build it. There's no signed
   release APK published yet.
 
@@ -76,9 +122,9 @@ app/src/main/java/com/jamieduncan/acetag/
   FilamentMaterial.kt       # base material + finish, and which combinations the tag can carry
   Type2Tag.kt / TagIo.kt    # raw NFC read/write, and whole-tag read/write on top of it
   InventoryActivity.kt      # home screen: spool list, export
-  ScanActivity.kt           # read a tag and route: known spool / new spool / blank sticker
+  ScanActivity.kt           # read a tag and route: known spool / new spool / sticker with no spool
   AddSpoolActivity.kt       # confirm and add a spool that came with its own tag
-  CustomSpoolActivity.kt    # set up a spool and write both stickers; also edit/rewrite
+  CustomSpoolActivity.kt    # set up a spool, with or without writing stickers; also edit/rewrite
   SpoolDetailActivity.kt    # per-spool detail + actions
   ColorPickerActivity.kt    # camera-based color sampling
   data/                     # Room entities/DAO/DB, repository, JSON export schema

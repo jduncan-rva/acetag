@@ -22,6 +22,9 @@ data class SpoolGroup(
     /** Any spool in the group whose stickers no longer match its details. */
     val hasStaleTags: Boolean get() = spools.any { it.tagsStale }
 
+    /** How many of these spools the printer could read right now. */
+    val taggedCount: Int get() = spools.count { it.hasTags }
+
     /** True when this filament chews through a brass nozzle — wood- or carbon-filled. */
     val isAbrasive: Boolean get() = newest.isAbrasive
 
