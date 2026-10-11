@@ -9,7 +9,7 @@ generated: { by: claude-code/opus-5, at: 2026-08-12T12:45:15Z }
 
 # Stub
 
-Authoritative text is in `CLAUDE.md`. Both UID columns are nullable; an untagged spool is ordinary
+Authoritative text is in `AGENTS.md`. Both UID columns are nullable; an untagged spool is ordinary
 inventory, not a broken record.
 
 The invariants worth not relearning: **a move is never silent**, and **taking one sticker of a pair

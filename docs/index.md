@@ -21,8 +21,8 @@ with `git clone`.
   else is agent- or process-authored. See §7 of the spec.
 * [log.md](log.md) records changes to the bundle.
 
-# Relationship to CLAUDE.md and README.md
+# Relationship to AGENTS.md and README.md
 
-Those two files stay authoritative for now. `README.md` is what a user reads; `CLAUDE.md` is the
+Those two files stay authoritative for now. `README.md` is what a user reads; `AGENTS.md` is the
 working brief. This bundle is the long-form knowledge behind both, and the stubs below deliberately
 point back rather than copying — duplicated domain rules drift, and the drift is silent.

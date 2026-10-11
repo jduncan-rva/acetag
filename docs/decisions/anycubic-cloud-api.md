@@ -56,7 +56,7 @@ index, sku, material_type, color[r,g,b], status, edit_status
 
 That is the tag payload *minus its identity*. The ACE tells you it read "PLA, black, SKU
 whatever" — not which sticker said so. AceTag's entire model is that the spool is the row and the
-UID is what distinguishes three black PLAs from each other (see CLAUDE.md, the tag-matching rule).
+UID is what distinguishes three black PLAs from each other (see AGENTS.md, the tag-matching rule).
 Matching a slot to a row by spec is exactly the inference that was tried before and that silently
 merged separate spools. So the honest version of "what's in your ACE" is *"some PLA Black is in
 slot 2"*, plus a disambiguation tap whenever more than one row matches — a confirmation dialog to

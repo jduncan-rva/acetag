@@ -9,7 +9,7 @@ generated: { by: claude-code/opus-5, at: 2026-08-12T12:45:15Z }
 
 # Stub
 
-Authoritative text is in `CLAUDE.md` and `README.md`. The three paths:
+Authoritative text is in `AGENTS.md` and `README.md`. The three paths:
 
 1. **Anycubic filament** — comes with its own tag. Scan, confirm, done. Nothing is written.
 2. **Anything else** — no tag, so write two stickers, one per side, one inventory row.
