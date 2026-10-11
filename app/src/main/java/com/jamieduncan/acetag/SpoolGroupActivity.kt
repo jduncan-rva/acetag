@@ -16,11 +16,12 @@ import androidx.recyclerview.widget.RecyclerView
 import com.jamieduncan.acetag.data.SpoolEntity
 import com.jamieduncan.acetag.data.SpoolRepository
 import com.jamieduncan.acetag.data.SpoolSource
-import com.jamieduncan.acetag.data.membersOf
+import com.jamieduncan.acetag.data.spoolsInGroup
 import com.jamieduncan.acetag.databinding.ActivitySpoolGroupBinding
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 
 /**
  * Several spools of the same filament, shown together. Only reached when there's more than one —
@@ -73,8 +74,9 @@ class SpoolGroupActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             SpoolRepository.get(this@SpoolGroupActivity)
-                .observeGroup(manufacturer, type, finish, color)
-                .collect { render(it.membersOf(manufacturer, type, finish, color)) }
+                .observeAll()
+                .map { it.spoolsInGroup(manufacturer, type, finish, color) }
+                .collect { render(it) }
         }
     }
 
