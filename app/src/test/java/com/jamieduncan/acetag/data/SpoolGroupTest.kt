@@ -32,8 +32,8 @@ class SpoolGroupTest {
 
     @Test
     fun `groups and membership both include finish and consume oldest matching spool`() {
-        val plainOld = spool(manufacturer = "Example", color = "#112233", addedAt = 1)
-        val wood = spool(manufacturer = "Example", color = "#112233", finish = FilamentMaterial.Finish.WOOD, addedAt = 2)
+        val wood = spool(manufacturer = "Example", color = "#112233", finish = FilamentMaterial.Finish.WOOD, addedAt = 1)
+        val plainOld = spool(manufacturer = "Example", color = "#112233", addedAt = 2)
         val plainNew = spool(manufacturer = "Example", color = "#112233", addedAt = 3)
         val otherBrand = spool(manufacturer = "Other", color = "#112233", addedAt = 4)
         val otherType = spool(manufacturer = "Example", type = "PETG", color = "#112233", addedAt = 5)
