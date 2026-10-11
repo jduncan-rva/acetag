@@ -4,6 +4,9 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Set by the release workflow from the tag (v1.2.3 -> 1.2.3); local builds are "dev".
+val releaseVersion: String? = providers.gradleProperty("releaseVersion").orNull
+
 android {
     namespace = "com.jamieduncan.acetag"
     compileSdk = 35
@@ -14,13 +17,32 @@ android {
         applicationId = "com.jamieduncan.acetag"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // versionCode must rise with every release: 1.2.3 -> 10203.
+        versionCode = releaseVersion
+            ?.split(".")?.map(String::toInt)
+            ?.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+            ?: 1
+        versionName = releaseVersion ?: "dev"
+    }
+
+    // The release key comes from the environment (the release workflow decodes it from secrets).
+    // Without it, assembleRelease produces an unsigned APK; debug builds never need it.
+    val keystore = System.getenv("ACETAG_KEYSTORE")
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("ACETAG_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ACETAG_KEY_ALIAS")
+                keyPassword = System.getenv("ACETAG_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

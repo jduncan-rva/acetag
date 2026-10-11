@@ -4,9 +4,8 @@
 
 AceTag: a native Android (Kotlin) app that keeps an inventory of 3D printer filament spools, and
 writes NFC tags in the Anycubic ACE Pro's proprietary spool format for filament that didn't come
-with one — entirely from the phone, no PC/USB reader. It's a small personal/community tool, not a
-product: debug builds sideloaded over adb, no signing, no Play Store. Don't add infrastructure
-(CI, signing, store metadata) unless asked.
+with one — entirely from the phone, no PC/USB reader. Open source; releases are signed APKs on
+GitHub Releases, sideloaded. No Play Store.
 
 **Three ways a spool gets in, and almost every design decision follows from which one you're in:**
 
@@ -62,6 +61,19 @@ README are skipped and named.
 Tests are plain JUnit on the JVM — no Robolectric, no instrumented tests. Android classes are stubs
 there, so keep decisions in plain Kotlin (`SpoolTag`, `FilamentMaterial`, `SpoolGroup`) where a test
 can reach them. `org.json` and SQLite (`sqlite-jdbc`) are real in tests.
+
+## CI and releases
+
+- `.github/workflows/ci.yml` runs on every PR and push to `main`: unit tests plus a debug APK,
+  uploaded as a run artifact for trying a PR on the phone. `main` is protected: changes land by
+  PR, and only once `test` is green.
+- `.github/workflows/release.yml` runs on a `vX.Y.Z` tag: tests, a signed release APK, and a
+  GitHub Release with generated notes. The version comes from the tag (`-PreleaseVersion`);
+  `versionCode` is `major*10000 + minor*100 + patch`, so minor and patch stay under 100.
+- Release signing reads `ACETAG_KEYSTORE`, `ACETAG_KEYSTORE_PASSWORD`, `ACETAG_KEY_ALIAS`,
+  `ACETAG_KEY_PASSWORD` from the environment; the workflow fills them from the repo secrets
+  `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Every release must use
+  the same key, or installed copies can't update in place.
 
 ## What only a phone can check
 
