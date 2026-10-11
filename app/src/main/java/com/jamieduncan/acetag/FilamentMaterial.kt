@@ -111,8 +111,6 @@ object FilamentMaterial {
     fun needsFallback(base: String, finish: Finish): Boolean =
         finish != Finish.NONE && !NATIVE.containsKey(base to finish)
 
-    fun isAbrasive(finish: Finish): Boolean = finish.abrasive
-
     /** e.g. "PLA Carbon Fibre", or just "PLA" when there's no finish. */
     fun displayName(base: String, finish: Finish): String =
         if (finish == Finish.NONE) base else "$base ${finish.label}"

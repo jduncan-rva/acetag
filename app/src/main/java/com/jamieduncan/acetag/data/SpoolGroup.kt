@@ -17,7 +17,6 @@ data class SpoolGroup(
 ) {
     val count: Int get() = spools.size
     val newest: SpoolEntity get() = spools.last()
-    val oldest: SpoolEntity get() = spools.first()
 
     /** Any spool in the group whose stickers no longer match its details. */
     val hasStaleTags: Boolean get() = spools.any { it.tagsStale }
@@ -27,9 +26,6 @@ data class SpoolGroup(
 
     /** True when this filament chews through a brass nozzle — wood- or carbon-filled. */
     val isAbrasive: Boolean get() = newest.isAbrasive
-
-    /** e.g. "PETG Carbon Fibre" — what the filament is, not what its tag was able to say. */
-    val materialName: String get() = newest.materialName
 
     fun spec() = newest.toSpec()
 }

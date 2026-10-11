@@ -22,8 +22,6 @@ class SpoolRepository(private val db: AppDatabase) {
 
     suspend fun findByTagUid(uid: String) = dao.findByTagUid(uid)
 
-    suspend fun allTagUids() = dao.allTagUids()
-
     suspend fun countOfSameColor(spec: SpoolTag.Spec) =
         dao.countOfSameColor(spec.type, spec.manufacturer, spec.color)
 
