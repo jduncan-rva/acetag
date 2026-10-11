@@ -36,16 +36,6 @@ interface SpoolDao {
     @Query("SELECT * FROM spools WHERE tagUid = :uid OR tagUid2 = :uid LIMIT 1")
     suspend fun findByTagUid(uid: String): SpoolEntity?
 
-    /** The spools that make up one inventory group, oldest first. */
-    @Query(
-        """
-        SELECT * FROM spools
-        WHERE manufacturer = :manufacturer AND type = :type AND finish = :finish AND color = :color
-        ORDER BY addedAt ASC
-        """,
-    )
-    fun observeGroup(manufacturer: String, type: String, finish: String, color: String): Flow<List<SpoolEntity>>
-
     /**
      * Every UID currently spoken for, across both sticker columns. Loaded up front by the write
      * flow so it can reject an already-claimed sticker without a database round trip while the

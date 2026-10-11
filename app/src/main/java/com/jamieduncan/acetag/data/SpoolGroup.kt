@@ -46,7 +46,7 @@ data class GroupKey(
 fun SpoolEntity.groupKey(): GroupKey = GroupKey(manufacturer, type, finish, color)
 
 /** Returns the members of one display group, oldest first for FIFO consumption. */
-fun List<SpoolEntity>.membersOf(
+fun List<SpoolEntity>.spoolsInGroup(
     manufacturer: String,
     type: String,
     finish: String,
