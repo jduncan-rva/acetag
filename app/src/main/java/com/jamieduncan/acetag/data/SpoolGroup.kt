@@ -35,12 +35,25 @@ data class SpoolGroup(
 }
 
 /** Everything that has to match for two spools to be "the same filament" on screen. */
-private data class GroupKey(
+data class GroupKey(
     val manufacturer: String,
     val type: String,
     val finish: String,
     val color: String,
 )
+
+/** The exact fields that define membership in an inventory display group. */
+fun SpoolEntity.groupKey(): GroupKey = GroupKey(manufacturer, type, finish, color)
+
+/** Returns the members of one display group, oldest first for FIFO consumption. */
+fun List<SpoolEntity>.membersOf(
+    manufacturer: String,
+    type: String,
+    finish: String,
+    color: String,
+): List<SpoolEntity> =
+    filter { it.groupKey() == GroupKey(manufacturer, type, finish, color) }
+        .sortedBy { it.addedAt }
 
 /**
  * Collapses an inventory list into groups by brand, material, finish and colour, keeping the
@@ -50,7 +63,7 @@ private data class GroupKey(
  * "PLA" to their tags, so without it they'd share a line and you'd reach for the wrong spool.
  */
 fun List<SpoolEntity>.groupBySpec(): List<SpoolGroup> =
-    groupBy { GroupKey(it.manufacturer, it.type, it.finish, it.color) }
+    groupBy { it.groupKey() }
         .map { (key, spools) ->
             SpoolGroup(
                 manufacturer = key.manufacturer,
