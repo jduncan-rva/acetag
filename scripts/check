@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# scripts/check — run the checks related to a set of changed files.
+#
+#   scripts/check $CHANGED     # space-separated repo-relative paths
+#   scripts/check              # no args = everything
+#
+# Routing:
+#   app/src/main/**, any Gradle file, gradle/**, app/schemas/**,
+#   or a non-test file under app/src/test/      → full: ./gradlew testDebugUnitTest assembleDebug
+#   only app/src/test/**/<X>Test.kt changed     → --tests <fqcn> for each of them
+#   scripts/check                               → bash -n
+#   anything else (docs, README, .factory/,
+#   scripts/spool_tag.py)                       → skipped, named in the output
+#
+# A full run is unit tests plus a debug APK, so a change that compiles but won't package (a bad
+# resource, a dependency that breaks dexing) still fails here. Nothing here touches a device: NFC
+# reads and writes, the camera and real tags are only ever checked by a person with a phone.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+# The pod image sets both. On a Mac with Android Studio, fall back to its bundled JDK and SDK.
+studio_jdk="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+if [[ -z "${JAVA_HOME:-}" && -d "$studio_jdk" ]]; then export JAVA_HOME="$studio_jdk"; fi
+if [[ -z "${ANDROID_HOME:-}" && -d "$HOME/Library/Android/sdk" ]]; then export ANDROID_HOME="$HOME/Library/Android/sdk"; fi
+
+full=0
+tests=()
+other=()
+
+if [[ $# -eq 0 ]]; then full=1; fi
+
+for f in "$@"; do
+  case "$f" in
+    app/src/test/*Test.kt)
+      fqcn="${f#app/src/test/java/}"; fqcn="${fqcn%.kt}"; tests+=("${fqcn//\//.}") ;;
+    app/src/main/* | app/src/test/* | app/schemas/* | gradle/* | *.gradle.kts | gradle.properties | gradlew | gradlew.bat)
+      full=1 ;;
+    scripts/check)
+      bash -n scripts/check && echo "scripts/check: syntax ok" ;;
+    *)
+      other+=("$f") ;;
+  esac
+done
+
+if [[ ${#other[@]} -gt 0 ]]; then echo "skipped (no checks apply): ${other[*]}"; fi
+
+if [[ $full -eq 1 ]]; then
+  exec ./gradlew --console=plain testDebugUnitTest assembleDebug
+elif [[ ${#tests[@]} -gt 0 ]]; then
+  args=()
+  for t in "${tests[@]}"; do args+=(--tests "$t"); done
+  exec ./gradlew --console=plain testDebugUnitTest "${args[@]}"
+fi

@@ -7,6 +7,8 @@ plugins {
 android {
     namespace = "com.jamieduncan.acetag"
     compileSdk = 35
+    // The pod image ships build-tools 35.0.0 only, read-only; AGP 8.7 would otherwise ask for 34.
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "com.jamieduncan.acetag"
@@ -36,6 +38,12 @@ android {
     }
 }
 
+// Room writes each schema version here at build time. Commit it: the migration test checks that
+// migrating an old database ends exactly at the newest exported schema.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.2")
@@ -61,4 +69,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Android's org.json is a stub in unit tests (throws at runtime) — pull in the real impl.
     testImplementation("org.json:json:20240303")
+    // A real SQLite on the JVM, so migrations run against a database instead of being read.
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.3")
 }

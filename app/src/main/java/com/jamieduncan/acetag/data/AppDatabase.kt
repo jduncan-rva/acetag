@@ -31,7 +31,7 @@ class Converters {
 @Database(
     entities = [SpoolEntity::class, SpoolEventEntity::class],
     version = 3,
-    exportSchema = false,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -124,13 +124,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** In order. `AppDatabaseMigrationTest` runs all of them from version 1. */
+        internal val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "acetag2.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(*MIGRATIONS).build().also { instance = it }
             }
     }
 }
