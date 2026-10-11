@@ -14,8 +14,8 @@ class SpoolRepository(private val db: AppDatabase) {
 
     fun observeAll() = dao.observeAll()
 
-    fun observeGroup(manufacturer: String, type: String, color: String) =
-        dao.observeGroup(manufacturer, type, color)
+    fun observeGroup(manufacturer: String, type: String, finish: String, color: String) =
+        dao.observeGroup(manufacturer, type, finish, color)
 
     suspend fun getById(id: Long) = dao.getById(id)
 

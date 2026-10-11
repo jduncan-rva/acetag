@@ -36,7 +36,7 @@ class InventoryActivity : AppCompatActivity() {
                     Intent(this, SpoolDetailActivity::class.java)
                         .putExtra(SpoolDetailActivity.EXTRA_SPOOL_ID, group.newest.id)
                 } else {
-                    SpoolGroupActivity.intent(this, group.manufacturer, group.type, group.color)
+                    SpoolGroupActivity.intent(this, group.manufacturer, group.type, group.finish, group.color)
                 },
             )
         }

@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.jamieduncan.acetag.data.SpoolEntity
 import com.jamieduncan.acetag.data.SpoolRepository
 import com.jamieduncan.acetag.data.SpoolSource
+import com.jamieduncan.acetag.data.membersOf
 import com.jamieduncan.acetag.databinding.ActivitySpoolGroupBinding
 import java.text.DateFormat
 import java.util.Date
@@ -35,12 +36,14 @@ class SpoolGroupActivity : AppCompatActivity() {
     companion object {
         private const val EXTRA_MANUFACTURER = "manufacturer"
         private const val EXTRA_TYPE = "type"
+        private const val EXTRA_FINISH = "finish"
         private const val EXTRA_COLOR = "color"
 
-        fun intent(context: Context, manufacturer: String, type: String, color: String): Intent =
+        fun intent(context: Context, manufacturer: String, type: String, finish: String, color: String): Intent =
             Intent(context, SpoolGroupActivity::class.java)
                 .putExtra(EXTRA_MANUFACTURER, manufacturer)
                 .putExtra(EXTRA_TYPE, type)
+                .putExtra(EXTRA_FINISH, finish)
                 .putExtra(EXTRA_COLOR, color)
     }
 
@@ -55,6 +58,7 @@ class SpoolGroupActivity : AppCompatActivity() {
 
         val manufacturer = intent.getStringExtra(EXTRA_MANUFACTURER) ?: return finish()
         val type = intent.getStringExtra(EXTRA_TYPE) ?: return finish()
+        val finish = intent.getStringExtra(EXTRA_FINISH) ?: return finish()
         val color = intent.getStringExtra(EXTRA_COLOR) ?: return finish()
 
         adapter = MemberAdapter { spool ->
@@ -69,8 +73,8 @@ class SpoolGroupActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             SpoolRepository.get(this@SpoolGroupActivity)
-                .observeGroup(manufacturer, type, color)
-                .collect { render(it) }
+                .observeGroup(manufacturer, type, finish, color)
+                .collect { render(it.membersOf(manufacturer, type, finish, color)) }
         }
     }
 
