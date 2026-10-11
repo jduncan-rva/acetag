@@ -196,7 +196,22 @@ def main():
                          help="also print a human-readable per-page dump")
     args = parser.parse_args()
 
-    if args.type and args.color and args.nozzle_min is not None:
+    required = (
+        ("--type", args.type),
+        ("--color", args.color),
+        ("--nozzle-min", args.nozzle_min),
+        ("--nozzle-max", args.nozzle_max),
+        ("--bed-min", args.bed_min),
+        ("--bed-max", args.bed_max),
+        ("--length", args.length),
+        ("--weight", args.weight),
+    )
+    provided = [value is not None for _, value in required]
+    if any(provided) and not all(provided):
+        missing = ", ".join(flag for flag, value in required if value is None)
+        parser.error(f"missing required tag fields: {missing}")
+
+    if all(provided):
         spec = cli_spec(args)
     else:
         spec = interactive_spec()
