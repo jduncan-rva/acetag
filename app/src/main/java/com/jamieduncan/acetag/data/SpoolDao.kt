@@ -37,19 +37,6 @@ interface SpoolDao {
     suspend fun findByTagUid(uid: String): SpoolEntity?
 
     /**
-     * Every UID currently spoken for, across both sticker columns. Loaded up front by the write
-     * flow so it can reject an already-claimed sticker without a database round trip while the
-     * tag is still in the phone's field.
-     */
-    @Query(
-        """
-        SELECT tagUid FROM spools WHERE tagUid IS NOT NULL
-        UNION SELECT tagUid2 FROM spools WHERE tagUid2 IS NOT NULL
-        """,
-    )
-    suspend fun allTagUids(): List<String>
-
-    /**
      * Takes a pair of stickers off whichever spool is wearing them. Called immediately before the
      * new owner claims them, inside one transaction — the unique indices mean the release has to
      * happen first, which is exactly the guarantee we want: no two spools claim one sticker.
