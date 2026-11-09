@@ -44,9 +44,10 @@ untagged spool is ordinary inventory: on the shelf and counted, the printer just
 
 ## Commands
 
-The pod image (`.factory/stack`: `android-35`) provides JDK 17, SDK platform 35 and build-tools
-35.0.0 with `JAVA_HOME`/`ANDROID_HOME` set; nothing else is needed on the host. On a Mac,
-`scripts/check` falls back to Android Studio's bundled JDK and `~/Library/Android/sdk`.
+The pod image is configured by the root `.factory.json` with stack `android-35`; it provides
+JDK 17, SDK platform 35 and build-tools 35.0.0 with `JAVA_HOME`/`ANDROID_HOME` set; nothing else
+is needed on the host. On a Mac, `scripts/check` falls back to Android Studio's bundled JDK and
+`~/Library/Android/sdk`.
 
 ```bash
 scripts/check <changed files...>   # the checks related to those files; no args = everything
