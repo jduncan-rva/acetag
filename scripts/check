@@ -9,7 +9,7 @@
 #   or a non-test file under app/src/test/      → full: ./gradlew testDebugUnitTest assembleDebug
 #   only app/src/test/**/<X>Test.kt changed     → --tests <fqcn> for each of them
 #   scripts/check                               → bash -n
-#   anything else (docs, README, .factory/,
+#   anything else (docs, README, .factory.json,
 #   scripts/spool_tag.py)                       → skipped, named in the output
 #
 # A full run is unit tests plus a debug APK, so a change that compiles but won't package (a bad
